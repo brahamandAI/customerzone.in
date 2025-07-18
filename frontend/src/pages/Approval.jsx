@@ -1,0 +1,748 @@
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Paper, Grid, Fade, Zoom, Button, Chip, Avatar, List, ListItem, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Snackbar, Alert } from '@mui/material';
+import ApprovalIcon from '@mui/icons-material/Approval';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import PendingIcon from '@mui/icons-material/Pending';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import BusinessIcon from '@mui/icons-material/Business';
+import CategoryIcon from '@mui/icons-material/Category';
+import PersonIcon from '@mui/icons-material/Person';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import { useAuth } from '../context/AuthContext';
+import { io } from 'socket.io-client';
+import { expenseAPI } from '../services/api';
+
+const Approval = () => {
+  const [approvals, setApprovals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedApproval, setSelectedApproval] = useState(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [approvalComment, setApprovalComment] = useState('');
+  const [modifiedAmount, setModifiedAmount] = useState('');
+  const [amountChangeReason, setAmountChangeReason] = useState('');
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const { user, getUserRole, canApproveLevel } = useAuth();
+
+  // Move fetchApprovals here so it's in scope for all handlers
+  const fetchApprovals = async () => {
+    setLoading(true);
+    try {
+      const response = await expenseAPI.getPendingApprovals();
+      const data = response.data;
+      if (data.success) {
+        const userRole = getUserRole();
+        let filteredExpenses = data.data;
+        if (userRole === 'L1_APPROVER') {
+          filteredExpenses = data.data.filter(expense => expense.status === 'submitted');
+        } else if (userRole === 'L2_APPROVER') {
+          filteredExpenses = data.data.filter(expense => expense.status === 'approved_l1');
+        } else if (userRole === 'L3_APPROVER') {
+          filteredExpenses = data.data.filter(expense => expense.status === 'approved_l2');
+        }
+        const transformedApprovals = filteredExpenses.map(expense => ({
+          id: expense.id,
+          expenseNumber: expense.expenseNumber,
+          title: expense.title,
+          amount: expense.amount,
+          site: expense.site.name,
+          category: expense.category,
+          submitter: expense.submittedBy.name,
+          date: new Date(expense.expenseDate).toISOString().split('T')[0],
+          description: expense.description,
+          status: (
+            expense.status === 'submitted' ||
+            expense.status === 'approved_l1' ||
+            expense.status === 'approved_l2'
+          ) ? 'pending' : expense.status.toLowerCase(),
+          approvalLevel: expense.status === 'submitted' ? 'L1' :
+                       expense.status === 'approved_l1' ? 'L2' :
+                       expense.status === 'approved_l2' ? 'L3' : 'L1',
+          priority: expense.priority || 'normal',
+          attachments: expense.attachments?.length || 0,
+          modifiedAmount: expense.modifiedAmount,
+          approvalComments: expense.approvalHistory || []
+        }));
+        setApprovals(transformedApprovals);
+      } else {
+        setError('Failed to fetch approvals');
+      }
+    } catch (err) {
+      console.error('Error fetching approvals:', err);
+      setError('Failed to fetch approvals');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch pending approvals
+  useEffect(() => {
+    fetchApprovals();
+
+    // Setup WebSocket for real-time updates
+    const socket = io("http://localhost:5001", { 
+      withCredentials: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+
+    socket.on('connect', () => {
+      const userRole = getUserRole();
+      if (userRole) {
+        socket.emit('join-role-room', `role-${userRole}`);
+      }
+    });
+
+    socket.on('new-expense-submitted', (data) => {
+      // Add new expense to the list if it's pending L1 approval
+      setApprovals(prev => [{
+        id: data.id,
+        expenseNumber: data.expenseNumber,
+        title: data.title,
+        amount: data.amount,
+        site: data.siteName,
+        category: data.category,
+        submitter: data.submitterName,
+        date: new Date().toISOString().split('T')[0],
+        description: data.description,
+        status: 'pending',
+        approvalLevel: 'L1',
+        priority: 'normal',
+        attachments: data.attachments?.length || 0,
+        modifiedAmount: null,
+        approvalComments: []
+      }, ...prev]);
+    });
+        
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  const levelMap = { L1: 1, L2: 2, L3: 3 };
+
+  const handleApprove = async (id) => {
+    try {
+      const response = await expenseAPI.approveExpense(id, {
+        action: 'approve',
+        level: levelMap[selectedApproval.approvalLevel], // send as int
+        approverId: user?.id, // <-- Add user id here
+        comments: approvalComment,
+        modifiedAmount: modifiedAmount ? parseFloat(modifiedAmount) : null,
+        modificationReason: amountChangeReason
+      });
+
+      const data = response.data;
+      
+      if (data.success) {
+        // Show success message
+        setSnackbarMessage(`Expense approved successfully! ${selectedApproval.approvalLevel === 'L3' ? 'Payment will be initiated.' : 'Forwarded to next level.'}`);
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        
+        // Update local state
+        setApprovals(approvals.filter(approval => approval.id !== id));
+    setOpenDialog(false);
+    setApprovalComment('');
+    setModifiedAmount('');
+    setAmountChangeReason('');
+    fetchApprovals(); // Re-fetch to update summary cards
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (error) {
+      console.error('Error approving expense:', error);
+      setSnackbarMessage('Failed to approve expense. Please try again.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handleReject = async (id) => {
+    try {
+      const response = await expenseAPI.rejectExpense(id, {
+        action: 'reject',
+        level: levelMap[selectedApproval.approvalLevel], // send as int
+        approverId: user?.id, // <-- Add user id here
+        comments: approvalComment,
+          modifiedAmount: modifiedAmount ? parseFloat(modifiedAmount) : null,
+        modificationReason: amountChangeReason
+      });
+
+      const data = response.data;
+      
+      if (data.success) {
+        // Show success message
+        setSnackbarMessage('Expense rejected successfully! Submitter will be notified.');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        
+        // Update local state
+        setApprovals(approvals.filter(approval => approval.id !== id));
+    setOpenDialog(false);
+    setApprovalComment('');
+    setModifiedAmount('');
+    setAmountChangeReason('');
+    fetchApprovals(); // Re-fetch to update summary cards
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (error) {
+      console.error('Error rejecting expense:', error);
+      setSnackbarMessage('Failed to reject expense. Please try again.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handleOpenDialog = (approval) => {
+    setSelectedApproval(approval);
+    setModifiedAmount('');
+    setAmountChangeReason('');
+    setOpenDialog(true);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'approved': return '#4caf50';
+      case 'rejected': return '#f44336';
+      case 'pending': return '#ff9800';
+      default: return '#2196f3';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'approved': return <CheckCircleIcon />;
+      case 'rejected': return <CancelIcon />;
+      case 'pending': return <PendingIcon />;
+      default: return <ReceiptIcon />;
+    }
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'urgent': return '#f44336';
+      case 'high': return '#ff9800';
+      case 'normal': return '#2196f3';
+      case 'low': return '#4caf50';
+      default: return '#2196f3';
+    }
+  };
+
+  const getNextApprovalLevel = (currentLevel) => {
+    switch (currentLevel) {
+      case 'L1': return 'L2';
+      case 'L2': return 'L3';
+      case 'L3': return 'COMPLETED';
+      default: return 'L1';
+    }
+  };
+
+  const getApprovalLevelName = (level) => {
+    switch (level) {
+      case 'L1': return 'Regional/Operations Manager';
+      case 'L2': return 'Admin';
+      case 'L3': return 'Finance';
+      default: return 'Unknown';
+    }
+  };
+
+  const canApprove = (approval) => {
+    const userRole = getUserRole();
+    const approvalLevel = approval.approvalLevel;
+    
+    // Convert role to level number with correct case
+        const roleToLevel = {
+      'L1_APPROVER': 'L1',
+      'L2_APPROVER': 'L2',
+      'L3_APPROVER': 'L3'
+    };
+    
+    console.log('Checking approval:', { userRole, approvalLevel, canApprove: roleToLevel[userRole] === approvalLevel });
+    return roleToLevel[userRole] === approvalLevel;
+  };
+
+  // Update the pending approvals count calculation
+  const pendingApprovals = approvals.filter(approval => {
+    const isApprover = canApprove(approval);
+    const isPending = approval.status === 'pending';
+    console.log('Checking pending:', { id: approval.id, status: approval.status, isApprover, isPending });
+    return isPending && isApprover;
+  }).length;
+  
+  const approvedCount = approvals.filter(a => 
+    ['approved', 'approved_l1', 'approved_l2', 'approved_l3'].includes(a.status.toLowerCase())
+  ).length;
+  
+  const rejectedCount = approvals.filter(a => 
+    ['rejected'].includes(a.status.toLowerCase())
+  ).length;
+
+  // Update the expense list rendering
+  return (
+    <Box sx={{ 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
+      p: 4,
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <CircularProgress />
+        </Box>
+      ) : error ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <Typography color="error">{error}</Typography>
+        </Box>
+      ) : (
+      <Fade in timeout={1000}>
+        <Box sx={{ position: 'relative', zIndex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+              <img 
+                src="/rakshak-logo.png" 
+                alt="Rakshak Securitas Logo" 
+                style={{ height: '40px' }}
+              />
+              <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}>
+                <ApprovalIcon />
+              </Avatar>
+            </Box>
+            <Typography variant="h3" fontWeight={900} color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+              Expense Approvals
+            </Typography>
+          </Box>
+
+          {/* Summary Cards */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} md={3}>
+              <Zoom in style={{ transitionDelay: '200ms' }}>
+                <Paper elevation={16} sx={{ 
+                  p: 3, 
+                  borderRadius: 3, 
+                  background: 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  textAlign: 'center'
+                }}>
+                  <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
+                    <PendingIcon />
+                  </Avatar>
+                  <Typography variant="h4" fontWeight={700} color="#ff9800">
+                      {pendingApprovals}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Pending Approvals
+                  </Typography>
+                </Paper>
+              </Zoom>
+            </Grid>
+            
+            <Grid item xs={12} md={3}>
+              <Zoom in style={{ transitionDelay: '400ms' }}>
+                <Paper elevation={16} sx={{ 
+                  p: 3, 
+                  borderRadius: 3, 
+                  background: 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  textAlign: 'center'
+                }}>
+                  <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
+                    <CheckCircleIcon />
+                  </Avatar>
+                  <Typography variant="h4" fontWeight={700} color="#4caf50">
+                    {approvedCount}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Approved This Month
+                  </Typography>
+                </Paper>
+              </Zoom>
+            </Grid>
+            
+            <Grid item xs={12} md={3}>
+              <Zoom in style={{ transitionDelay: '600ms' }}>
+                <Paper elevation={16} sx={{ 
+                  p: 3, 
+                  borderRadius: 3, 
+                  background: 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  textAlign: 'center'
+                }}>
+                  <Avatar sx={{ bgcolor: '#f44336', mx: 'auto', mb: 2 }}>
+                    <CancelIcon />
+                  </Avatar>
+                  <Typography variant="h4" fontWeight={700} color="#f44336">
+                    {rejectedCount}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Rejected This Month
+                  </Typography>
+                </Paper>
+              </Zoom>
+            </Grid>
+            
+            <Grid item xs={12} md={3}>
+              <Zoom in style={{ transitionDelay: '800ms' }}>
+                <Paper elevation={16} sx={{ 
+                  p: 3, 
+                  borderRadius: 3, 
+                  background: 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  textAlign: 'center'
+                }}>
+                  <Avatar sx={{ bgcolor: '#2196f3', mx: 'auto', mb: 2 }}>
+                    <AttachMoneyIcon />
+                  </Avatar>
+                  <Typography variant="h4" fontWeight={700} color="#2196f3">
+                    ₹{approvals.reduce((sum, a) => sum + a.amount, 0).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Amount
+                  </Typography>
+                </Paper>
+              </Zoom>
+            </Grid>
+          </Grid>
+
+          {/* Approvals List */}
+          <Paper elevation={16} sx={{ 
+            borderRadius: 3, 
+            background: 'rgba(255,255,255,0.95)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            overflow: 'hidden'
+          }}>
+            <Box sx={{ p: 3, borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+              <Typography variant="h6" fontWeight={600} color="#667eea">
+                Approval Requests
+              </Typography>
+            </Box>
+            
+            <List sx={{ p: 0 }}>
+              {approvals.map((approval, index) => (
+                <React.Fragment key={approval.id}>
+                  <ListItem sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 2 }}>
+                      <Avatar sx={{ bgcolor: getStatusColor(approval.status) }}>
+                        {getStatusIcon(approval.status)}
+                      </Avatar>
+                      
+                      <Box sx={{ flex: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                          <Typography variant="h6" fontWeight={600}>
+                            {approval.title}
+                          </Typography>
+                          <Chip 
+                            label={approval.priority} 
+                            size="small"
+                            sx={{ 
+                              bgcolor: `${getPriorityColor(approval.priority)}20`,
+                              color: getPriorityColor(approval.priority),
+                              fontWeight: 600
+                            }}
+                          />
+                          <Chip 
+                            label={approval.status} 
+                            size="small"
+                            sx={{ 
+                              bgcolor: `${getStatusColor(approval.status)}20`,
+                              color: getStatusColor(approval.status),
+                              fontWeight: 600
+                            }}
+                          />
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <BusinessIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary">
+                              {approval.site}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <CategoryIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary">
+                              {approval.category}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary">
+                              {approval.submitter}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <ScheduleIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary">
+                              {approval.date}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          {approval.description}
+                        </Typography>
+                        
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Typography variant="h6" fontWeight={700} color="#667eea">
+                            ₹{approval.amount.toLocaleString()}
+                          </Typography>
+                          {approval.modifiedAmount && approval.modifiedAmount !== approval.amount && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" color="warning.main" fontWeight={600}>
+                                → ₹{approval.modifiedAmount.toLocaleString()}
+                              </Typography>
+                              <Chip 
+                                label="Modified" 
+                                size="small" 
+                                color="warning" 
+                                variant="outlined"
+                              />
+                            </Box>
+                          )}
+                          {approval.attachments > 0 && (
+                            <Chip 
+                              label={`${approval.attachments} attachment${approval.attachments > 1 ? 's' : ''}`}
+                              size="small"
+                              variant="outlined"
+                            />
+                          )}
+                          <Chip 
+                            label={getApprovalLevelName(approval.approvalLevel)}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </Box>
+                      </Box>
+                      
+                      {approval.status === 'pending' && canApprove(approval) && (
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Button
+                            variant="contained"
+                            color="success"
+                            size="small"
+                            onClick={() => handleOpenDialog(approval)}
+                            sx={{ minWidth: 'auto', px: 2 }}
+                          >
+                            {approval.approvalLevel === 'L3' ? 'Final Approve' : 'Approve'}
+                          </Button>
+                          <Button
+                            variant="contained"
+                            color="error"
+                            size="small"
+                            onClick={() => handleOpenDialog(approval)}
+                            sx={{ minWidth: 'auto', px: 2 }}
+                          >
+                            Reject
+                          </Button>
+                        </Box>
+                      )}
+                      
+                      {approval.status === 'pending' && !canApprove(approval) && (
+                        <Chip 
+                          label={`Waiting for ${getApprovalLevelName(approval.approvalLevel)}`}
+                          size="small"
+                          color="warning"
+                        />
+                      )}
+                    </Box>
+                  </ListItem>
+                  {index < approvals.length - 1 && <Divider />}
+                </React.Fragment>
+              ))}
+            </List>
+          </Paper>
+        </Box>
+      </Fade>
+      )}
+
+      {/* Approval Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          {selectedApproval && `Review Expense: ${selectedApproval.title}`}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
+            {/* Expense Details */}
+            <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.05)', borderRadius: 2 }}>
+              <Typography variant="h6" gutterBottom>Expense Details</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Expense Number:</Typography>
+                  <Typography variant="body1" fontWeight={600}>{selectedApproval?.expenseNumber}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Current Level:</Typography>
+                  <Typography variant="body1" fontWeight={600} color="primary">
+                    {selectedApproval && getApprovalLevelName(selectedApproval.approvalLevel)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Original Amount:</Typography>
+                  <Typography variant="body1" fontWeight={600}>₹{selectedApproval?.amount?.toLocaleString()}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Site:</Typography>
+                  <Typography variant="body1" fontWeight={600}>{selectedApproval?.site}</Typography>
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Amount Modification (All Approvers) */}
+            <Box sx={{ p: 2, bgcolor: 'rgba(102, 126, 234, 0.1)', borderRadius: 2, border: '1px solid rgba(102, 126, 234, 0.2)' }}>
+              <Typography variant="h6" gutterBottom color="#667eea">
+                Amount Modification
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Original Amount"
+                    value={`₹${selectedApproval?.amount?.toLocaleString()}`}
+                    fullWidth
+                    disabled
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Modified Amount (₹)"
+                    type="number"
+                    value={modifiedAmount}
+                    onChange={(e) => setModifiedAmount(e.target.value)}
+                    placeholder={`Enter new amount`}
+                    fullWidth
+                    helperText={modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount ? 
+                      `Difference: ₹${(parseFloat(modifiedAmount) - selectedApproval?.amount).toLocaleString()}` : 
+                      "Leave empty to keep original amount"
+                    }
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+                {modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount && (
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Reason for Amount Change"
+                      multiline
+                      rows={2}
+                      value={amountChangeReason}
+                      onChange={(e) => setAmountChangeReason(e.target.value)}
+                      placeholder="Please provide a reason for modifying the amount..."
+                      fullWidth
+                      required
+                      helperText="Required when modifying amount"
+                    />
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+
+            {/* Approval Comments */}
+            <TextField
+              label="Approval Comment"
+              multiline
+              rows={3}
+              value={approvalComment}
+              onChange={(e) => setApprovalComment(e.target.value)}
+              placeholder="Add your approval/rejection comments..."
+              fullWidth
+            />
+
+            {/* Previous Comments */}
+            {selectedApproval?.approvalComments?.length > 0 && (
+              <Box>
+                <Typography variant="h6" gutterBottom>Previous Comments</Typography>
+                <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                  {selectedApproval.approvalComments.map((comment, index) => (
+                    <Box key={index} sx={{ p: 2, mb: 1, bgcolor: 'rgba(0,0,0,0.05)', borderRadius: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="body2" fontWeight={600}>
+                          {getApprovalLevelName(comment.level)} - {new Date(comment.timestamp).toLocaleString()}
+                        </Typography>
+                        {comment.amountModified && (
+                          <Chip 
+                            label="Amount Modified" 
+                            size="small" 
+                            color="warning" 
+                            variant="outlined"
+                          />
+                        )}
+                      </Box>
+                      <Typography variant="body2" sx={{ mb: 1 }}>{comment.comment}</Typography>
+                      
+                      {comment.amountModified && (
+                        <Box sx={{ 
+                          p: 1, 
+                          bgcolor: 'rgba(255, 152, 0, 0.1)', 
+                          borderRadius: 1, 
+                          border: '1px solid rgba(255, 152, 0, 0.3)',
+                          mt: 1
+                        }}>
+                          <Typography variant="caption" color="warning.main" fontWeight={600} display="block">
+                            Amount Modification:
+                          </Typography>
+                          <Typography variant="body2">
+                            Original: ₹{comment.originalAmount?.toLocaleString()} → 
+                            Modified: ₹{comment.modifiedAmount?.toLocaleString()}
+                          </Typography>
+                          {comment.amountChangeReason && (
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                              Reason: {comment.amountChangeReason}
+                            </Typography>
+                          )}
+                        </Box>
+                      )}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={() => selectedApproval && handleReject(selectedApproval.id)}
+            color="error"
+            variant="contained"
+            disabled={modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount && !amountChangeReason}
+          >
+            Reject
+          </Button>
+          <Button 
+            onClick={() => selectedApproval && handleApprove(selectedApproval.id)}
+            color="success"
+            variant="contained"
+            disabled={modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount && !amountChangeReason}
+          >
+            {selectedApproval?.approvalLevel === 'L3' ? 'Final Approve & Initiate Payment' : 'Approve & Forward'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for messages */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert onClose={() => setSnackbarOpen(false)} severity={snackbarSeverity} sx={{ width: '100%' }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+};
+
+export default Approval; 

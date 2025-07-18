@@ -1,0 +1,312 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
+const hpp = require('hpp');
+const cookieParser = require('cookie-parser');
+const fileUpload = require('express-fileupload');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const winston = require('winston');
+const nodeCron = require('node-cron');
+const path = require('path');
+require('dotenv').config();
+
+const app = express();
+const server = createServer(app);
+
+// Initialize Socket.io with CORS
+const io = new Server(server, {
+  cors: {
+    origin: ['http://localhost:3000'],
+    methods: ['GET', 'POST'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }
+});
+
+// Winston Logger Configuration
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'rakshak-backend' },
+  transports: [
+    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'logs/combined.log' }),
+    new winston.transports.Console({
+      format: winston.format.simple()
+    })
+  ]
+});
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
+app.use(compression());
+app.use(mongoSanitize());
+app.use(xss());
+app.use(hpp());
+app.use(cookieParser());
+
+// Rate limiting with different limits for different endpoints
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 50, // limit each IP to 50 requests per windowMs for auth endpoints
+  message: {
+    success: false,
+    message: 'Too many authentication attempts, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting
+app.use('/api/auth', authLimiter);
+app.use('/api/', generalLimiter);
+
+// CORS configuration for Express
+app.use(cors({
+  origin: '*', // Allow all origins temporarily
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// File upload middleware
+app.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
+  abortOnLimit: true,
+  responseOnLimit: 'File size limit exceeded',
+  useTempFiles: true,
+  tempFileDir: '/tmp/',
+  createParentPath: true
+}));
+
+// Logging middleware
+app.use(morgan('combined', {
+  stream: {
+    write: (message) => logger.info(message.trim())
+  }
+}));
+
+// MongoDB connection with advanced options
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/rakshak-expense', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    
+    logger.info(`MongoDB Connected: ${conn.connection.host}`);
+    
+    // Database event listeners
+    mongoose.connection.on('error', (err) => {
+      logger.error('MongoDB connection error:', err);
+    });
+    
+    mongoose.connection.on('disconnected', () => {
+      logger.warn('MongoDB disconnected');
+    });
+    
+    mongoose.connection.on('reconnected', () => {
+      logger.info('MongoDB reconnected');
+    });
+    
+  } catch (error) {
+    logger.error('Database connection error:', error);
+    process.exit(1);
+  }
+};
+
+// Connect to database
+connectDB();
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  logger.info(`User connected: ${socket.id}`);
+  
+  // Join user to their role-based room
+  socket.on('join-role-room', (userRole) => {
+    socket.join(`role-${userRole}`);
+    logger.info(`User ${socket.id} joined role room: ${userRole}`);
+  });
+  
+  // Join user to site-based room
+  socket.on('join-site-room', (siteId) => {
+    socket.join(`site-${siteId}`);
+    logger.info(`User ${socket.id} joined site room: ${siteId}`);
+  });
+  
+  // Handle expense status updates
+  socket.on('expense-status-update', (data) => {
+    // Broadcast to relevant users
+    socket.to(`site-${data.siteId}`).emit('expense-updated', data);
+    socket.to('role-l1_approver').emit('expense-updated', data);
+    socket.to('role-l2_approver').emit('expense-updated', data);
+    socket.to('role-l3_approver').emit('expense-updated', data);
+  });
+  
+  // Handle budget alerts
+  socket.on('budget-alert', (data) => {
+    socket.to('role-l3_approver').emit('budget-alert', data);
+  });
+  
+  socket.on('disconnect', () => {
+    logger.info(`User disconnected: ${socket.id}`);
+  });
+});
+
+// Make io available to routes
+app.set('io', io);
+
+// Import routes
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const siteRoutes = require('./routes/sites');
+const expenseRoutes = require('./routes/expenses');
+const dashboardRoutes = require('./routes/dashboard');
+const reportRoutes = require('./routes/reports');
+const notificationRoutes = require('./routes/notifications');
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/sites', siteRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    memory: process.memoryUsage(),
+    version: '1.0.0'
+  });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Rakshak Expense Management System API',
+    version: '1.0.0',
+    status: 'Active',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      users: '/api/users',
+      sites: '/api/sites',
+      expenses: '/api/expenses',
+      dashboard: '/api/dashboard',
+      reports: '/api/reports',
+      notifications: '/api/notifications'
+    },
+    features: [
+      'Real-time updates via Socket.io',
+      'Multi-level expense approval',
+      'Vehicle KM tracking',
+      'Budget management',
+      'File upload support',
+      'Email notifications',
+      'Comprehensive logging',
+    ]
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  logger.error('Error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+// Start server
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`);
+  logger.info(`Socket.IO server ready for connections`);
+});
+
+// Graceful shutdown
+const gracefulShutdown = (signal) => {
+  logger.info(`${signal} received, shutting down gracefully`);
+  
+  server.close(() => {
+    logger.info('HTTP server closed');
+    
+    mongoose.connection.close(() => {
+      logger.info('MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+  
+  // Force close server after 10 seconds
+  setTimeout(() => {
+    logger.error('Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err, promise) => {
+  logger.error('Unhandled Promise Rejection:', err);
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+module.exports = { app, server, io }; 

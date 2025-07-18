@@ -1,0 +1,488 @@
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const asyncHandler = require('express-async-handler');
+const { body, validationResult } = require('express-validator');
+const User = require('../models/User');
+const { protect } = require('../middleware/auth');
+
+const router = express.Router();
+
+// @desc    Register user
+// @route   POST /api/auth/register
+// @access  Public
+router.post('/register', [
+  body('name')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Name must be between 2 and 50 characters'),
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+  body('employeeId')
+    .trim()
+    .isLength({ min: 3, max: 20 })
+    .withMessage('Employee ID must be between 3 and 20 characters'),
+  body('department')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Department must be between 2 and 50 characters'),
+  body('site')
+    .isMongoId()
+    .withMessage('Please provide a valid site ID'),
+  body('role')
+    .optional()
+    .isIn(['submitter', 'l1_approver', 'l2_approver', 'l3_approver'])
+    .withMessage('Invalid role specified')
+], asyncHandler(async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+
+  const { name, email, password, employeeId, department, site, role, phone, bankDetails } = req.body;
+
+  // Check if user already exists
+  const existingUser = await User.findOne({
+    $or: [{ email }, { employeeId }]
+  });
+
+  if (existingUser) {
+    return res.status(400).json({
+      success: false,
+      message: existingUser.email === email ? 'Email already registered' : 'Employee ID already exists'
+    });
+  }
+
+  // Create user
+  const user = await User.create({
+    name,
+    email,
+    password,
+    employeeId,
+    department,
+    site,
+    role: role || 'submitter',
+    phone,
+    bankDetails
+  });
+
+  // Generate JWT token
+  const token = user.getSignedJwtToken();
+
+  // Get user data without password
+  const userData = await User.findById(user._id)
+    .select('-password')
+    .populate('site', 'name code location.city');
+
+  // Get Socket.io instance
+  const io = req.app.get('io');
+  
+  // Emit user registration event to admins
+  io.to('role-l3_approver').emit('user-registered', {
+    user: userData,
+    timestamp: new Date()
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'User registered successfully',
+    token,
+    user: userData
+  });
+}));
+
+// @desc    Login user
+// @route   POST /api/auth/login
+// @access  Public
+router.post('/login', [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('password')
+    .notEmpty()
+    .withMessage('Password is required')
+], asyncHandler(async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+
+  const { email, password } = req.body;
+
+  // Find user by email and include password
+  const user = await User.findOne({ email }).select('+password').populate('site', 'name code location.city');
+
+  // Print user email and hashed password if user found
+  if (user) {
+    console.log('LOGIN ATTEMPT:');
+    console.log('User email:', user.email);
+    console.log('User hashed password:', user.password);
+  }
+
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid credentials'
+    });
+  }
+
+  // Check if account is locked
+  if (user.isLocked) {
+    return res.status(423).json({
+      success: false,
+      message: 'Account is temporarily locked due to too many failed login attempts'
+    });
+  }
+
+  // Check if user is active
+  if (!user.isActive) {
+    return res.status(401).json({
+      success: false,
+      message: 'Account is deactivated. Please contact administrator'
+    });
+  }
+
+  // Check password
+  const isMatch = await user.matchPassword(password);
+
+  if (!isMatch) {
+    // Increment login attempts
+    await user.incLoginAttempts();
+    
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid credentials'
+    });
+  }
+
+  // Reset login attempts on successful login
+  await user.resetLoginAttempts();
+
+  // Update last login
+  user.lastLogin = new Date();
+  await user.save();
+
+  // Generate JWT token
+  const token = user.getSignedJwtToken();
+
+  // Get user data without password
+  const userData = await User.findById(user._id)
+    .select('-password')
+    .populate('site', 'name code location.city');
+
+  // Get Socket.io instance
+  const io = req.app.get('io');
+  
+  // Emit user login event
+  io.to('role-l3_approver').emit('user-login', {
+    user: userData,
+    timestamp: new Date(),
+    ipAddress: req.ip
+  });
+
+  res.json({
+    success: true,
+    message: 'Login successful',
+    token,
+    user: userData
+  });
+}));
+
+// @desc    Logout user
+// @route   POST /api/auth/logout
+// @access  Private
+router.post('/logout', protect, asyncHandler(async (req, res) => {
+  // In a real application, you might want to blacklist the token
+  // For now, we'll just return success
+  
+  // Get Socket.io instance
+  const io = req.app.get('io');
+  
+  // Emit user logout event
+  io.to('role-l3_approver').emit('user-logout', {
+    user: req.user,
+    timestamp: new Date()
+  });
+
+  res.json({
+    success: true,
+    message: 'Logout successful'
+  });
+}));
+
+// @desc    Get current logged in user
+// @route   GET /api/auth/me
+// @access  Private
+router.get('/me', protect, asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id)
+    .select('-password')
+    .populate('site', 'name code location.city vehicleKmLimit budget');
+
+  res.json({
+    success: true,
+    user
+  });
+}));
+
+// @desc    Update user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+router.put('/profile', protect, [
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Name must be between 2 and 50 characters'),
+  body('phone')
+    .optional()
+    .matches(/^[\+]?[1-9][\d]{0,15}$/)
+    .withMessage('Please provide a valid phone number'),
+  body('address.street')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Street address cannot exceed 200 characters'),
+  body('address.city')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('City cannot exceed 50 characters'),
+  body('address.state')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('State cannot exceed 50 characters'),
+  body('address.zipCode')
+    .optional()
+    .matches(/^\d{6}$/)
+    .withMessage('Please provide a valid 6-digit zip code')
+], asyncHandler(async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+
+  const { name, phone, address, preferences, bankDetails } = req.body;
+
+  const user = await User.findById(req.user.id);
+
+  if (name) user.name = name;
+  if (phone) user.phone = phone;
+  if (address) user.address = { ...user.address, ...address };
+  if (preferences) user.preferences = { ...user.preferences, ...preferences };
+  if (bankDetails) user.bankDetails = { ...user.bankDetails, ...bankDetails };
+
+  await user.save();
+
+  const updatedUser = await User.findById(user._id)
+    .select('-password')
+    .populate('site', 'name code location.city');
+
+  res.json({
+    success: true,
+    message: 'Profile updated successfully',
+    user: updatedUser
+  });
+}));
+
+// @desc    Change password
+// @route   PUT /api/auth/password
+// @access  Private
+router.put('/password', protect, [
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('Current password is required'),
+  body('newPassword')
+    .isLength({ min: 6 })
+    .withMessage('New password must be at least 6 characters long')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('New password must contain at least one uppercase letter, one lowercase letter, and one number')
+], asyncHandler(async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+
+  const { currentPassword, newPassword } = req.body;
+
+  // Get user with password
+  const user = await User.findById(req.user.id).select('+password');
+
+  // Check current password
+  const isMatch = await user.matchPassword(currentPassword);
+
+  if (!isMatch) {
+    return res.status(400).json({
+      success: false,
+      message: 'Current password is incorrect'
+    });
+  }
+
+  // Update password
+  user.password = newPassword;
+  await user.save();
+
+  res.json({
+    success: true,
+    message: 'Password updated successfully'
+  });
+}));
+
+// @desc    Forgot password
+// @route   POST /api/auth/forgot-password
+// @access  Public
+router.post('/forgot-password', [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email')
+], asyncHandler(async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+
+  const { email } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found with this email'
+    });
+  }
+
+  // Generate reset token
+  const resetToken = user.getResetPasswordToken();
+  await user.save();
+
+  // In a real application, you would send an email here
+  // For now, we'll just return the token (don't do this in production!)
+  
+  res.json({
+    success: true,
+    message: 'Password reset token generated',
+    resetToken: resetToken // Remove this in production
+  });
+}));
+
+// @desc    Reset password
+// @route   POST /api/auth/reset-password/:resetToken
+// @access  Public
+router.post('/reset-password/:resetToken', [
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number')
+], asyncHandler(async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+
+  const { password } = req.body;
+  const { resetToken } = req.params;
+
+  // Hash the token
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  // Find user by reset token
+  const user = await User.findOne({
+    resetPasswordToken: hashedToken,
+    resetPasswordExpire: { $gt: Date.now() }
+  });
+
+  if (!user) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid or expired reset token'
+    });
+  }
+
+  // Set new password
+  user.password = password;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpire = undefined;
+  await user.save();
+
+  res.json({
+    success: true,
+    message: 'Password reset successful'
+  });
+}));
+
+// @desc    Verify token
+// @route   GET /api/auth/verify-token
+// @access  Private
+router.get('/verify-token', protect, asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    message: 'Token is valid',
+    user: req.user
+  });
+}));
+
+// @desc    Refresh token
+// @route   POST /api/auth/refresh-token
+// @access  Private
+router.post('/refresh-token', protect, asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id)
+    .select('-password')
+    .populate('site', 'name code location.city');
+
+  // Generate new token
+  const token = user.getSignedJwtToken();
+
+  res.json({
+    success: true,
+    message: 'Token refreshed successfully',
+    token,
+    user
+  });
+}));
+
+module.exports = router; 
