@@ -154,7 +154,7 @@ router.post('/create', async (req, res) => {
       const submitter = await User.findById(submittedById);
       if (submitter && submitter.bankDetails) {
         newExpense.reimbursement.bankDetails = submitter.bankDetails;
-      }
+          }
     }
 
     await newExpense.save();

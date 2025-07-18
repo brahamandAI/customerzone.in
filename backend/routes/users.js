@@ -408,7 +408,7 @@ router.get('/role/:role', protect, authorize('l3_approver'), async (req, res) =>
       role: role, 
       isActive: true 
     })
-      .select('-password')
+    .select('-password')
       .sort({ name: 'asc' });
 
     res.json({
