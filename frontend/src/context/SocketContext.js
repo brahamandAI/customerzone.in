@@ -20,8 +20,15 @@ export const SocketProvider = ({ children }) => {
       return;
     }
 
-    // 1. Fetch notifications from API on mount
-    axios.get('/api/notifications')
+    // Get JWT token from user or localStorage
+    const token = user?.token || localStorage.getItem('token');
+
+    // 1. Fetch notifications from API on mount, with Authorization header
+    axios.get('/api/notifications', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
       .then(res => {
         if (res.data && res.data.data && res.data.data.notifications) {
           setNotifications(res.data.data.notifications.map(n => ({

@@ -25,7 +25,8 @@ const NotificationBell = () => {
     if (notification.type === 'new_expense') {
       navigate(`/expenses/${notification.data.expenseId}`);
     } else if (notification.type === 'budget_alert') {
-      navigate(`/sites/${notification.data.site}/budget`);
+      // Always go to summary page for budget alerts
+      navigate('/budget-alerts');
     }
     
     handleClose();

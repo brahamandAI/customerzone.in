@@ -35,20 +35,15 @@ const Dashboard = () => {
         const res = await dashboardAPI.getOverview();
         console.log('DASHBOARD API RESPONSE:', res.data); // Debug log
         if (res.data.success) {
-          if (user && user.role === 'l1_approver') {
-            setStats({
-              totalExpenses: res.data.data.approvalStats?.totalApprovals || 0,
-              approvedThisMonth: res.data.data.approvalStats?.approvedCount || 0,
-              pendingApprovals: Array.isArray(res.data.data.pendingApprovals) ? res.data.data.pendingApprovals.length : 0,
-              budgetUtilization: res.data.data.budgetUtilization || 0
-            });
-          } else {
-            // For submitter, map totalAmount to totalAmount, keep other stats as is
-            setStats({
-              ...res.data.data.userStats,
-              totalAmount: res.data.data.userStats?.totalAmount || 0
-            });
-          }
+          // Always use the new pendingApprovalsCount for the Pending Approvals card
+          setStats(prev => ({
+            ...prev,
+            pendingApprovals: res.data.data.pendingApprovalsCount || 0,
+            totalAmount: res.data.data.userStats?.totalAmount || 0,
+            totalExpenses: res.data.data.userStats?.totalExpenses || 0,
+            approvedThisMonth: res.data.data.approvalStats?.approvedCount || 0,
+            budgetUtilization: res.data.data.budgetUtilization || 0
+          }));
           setTopCategories(res.data.data.topCategories || []);
           setRecentActivities(res.data.data.recentActivities || []);
         }

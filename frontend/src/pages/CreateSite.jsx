@@ -5,16 +5,23 @@ import AddIcon from '@mui/icons-material/Add';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import WarningIcon from '@mui/icons-material/Warning';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { siteAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const CreateSite = () => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
-    clientId: '',
-    clientName: '',
+    name: '', // Site Name
+    code: '', // Site Code
     address: '',
+    city: '',
+    state: '',
+    pincode: '',
     contactPerson: '',
     phone: '',
     email: '',
     monthlyBudget: '',
+    yearlyBudget: '',
     budgetAlertThreshold: 80, // Default 80%
     vehicleKmLimit: 1000 // Default 1000 KM
   });
@@ -30,20 +37,56 @@ const CreateSite = () => {
     { category: 'Office Supplies', budget: '', used: 0 }
   ]);
 
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+
   const handleCategoryBudgetChange = (index, field, value) => {
     const updatedBudgets = [...categoryBudgets];
     updatedBudgets[index] = { ...updatedBudgets[index], [field]: value };
     setCategoryBudgets(updatedBudgets);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setSuccess('');
+    setError('');
     const siteData = {
-      ...formData,
+      name: formData.name,
+      code: formData.code,
+      location: {
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+        country: 'India'
+      },
+      contactPerson: formData.contactPerson,
+      phone: formData.phone,
+      email: formData.email,
+      budget: {
+        monthly: Number(formData.monthlyBudget),
+        yearly: Number(formData.yearlyBudget),
+        alertThreshold: Number(formData.budgetAlertThreshold)
+      },
+      vehicleKmLimit: Number(formData.vehicleKmLimit),
       categoryBudgets,
-      totalBudget: categoryBudgets.reduce((sum, cat) => sum + (parseFloat(cat.budget) || 0), 0)
+      createdBy: user?._id
     };
-    console.log('Site data with budgets:', siteData);
+    try {
+      const res = await siteAPI.create(siteData);
+      if (res.data.success) {
+        setSuccess('✅ Site created successfully!');
+        // Optionally reset form here
+      } else {
+        setError(res.data.message || 'Failed to create site');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to create site');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -100,10 +143,10 @@ const CreateSite = () => {
                       <Grid item xs={12} sm={6}>
                         <TextField
                           fullWidth
-                          label="Client ID"
+                          label="Site Name"
                           variant="outlined"
-                          value={formData.clientId}
-                          onChange={(e) => setFormData({...formData, clientId: e.target.value})}
+                          value={formData.name}
+                          onChange={(e) => setFormData({...formData, name: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               '&:hover fieldset': { borderColor: '#667eea' },
@@ -115,10 +158,10 @@ const CreateSite = () => {
                       <Grid item xs={12} sm={6}>
                         <TextField
                           fullWidth
-                          label="Client Name"
+                          label="Site Code"
                           variant="outlined"
-                          value={formData.clientName}
-                          onChange={(e) => setFormData({...formData, clientName: e.target.value})}
+                          value={formData.code}
+                          onChange={(e) => setFormData({...formData, code: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               '&:hover fieldset': { borderColor: '#667eea' },
@@ -136,6 +179,51 @@ const CreateSite = () => {
                           rows={3}
                           value={formData.address}
                           onChange={(e) => setFormData({...formData, address: e.target.value})}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '&:hover fieldset': { borderColor: '#667eea' },
+                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                            }
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="City"
+                          variant="outlined"
+                          value={formData.city}
+                          onChange={(e) => setFormData({...formData, city: e.target.value})}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '&:hover fieldset': { borderColor: '#667eea' },
+                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                            }
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="State"
+                          variant="outlined"
+                          value={formData.state}
+                          onChange={(e) => setFormData({...formData, state: e.target.value})}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '&:hover fieldset': { borderColor: '#667eea' },
+                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                            }
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Pincode"
+                          variant="outlined"
+                          value={formData.pincode}
+                          onChange={(e) => setFormData({...formData, pincode: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               '&:hover fieldset': { borderColor: '#667eea' },
@@ -211,6 +299,25 @@ const CreateSite = () => {
                           variant="outlined"
                           value={formData.monthlyBudget}
                           onChange={(e) => setFormData({...formData, monthlyBudget: e.target.value})}
+                          InputProps={{
+                            startAdornment: <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>₹</Typography>
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '&:hover fieldset': { borderColor: '#667eea' },
+                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                            }
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Yearly Budget (₹)"
+                          type="number"
+                          variant="outlined"
+                          value={formData.yearlyBudget}
+                          onChange={(e) => setFormData({...formData, yearlyBudget: e.target.value})}
                           InputProps={{
                             startAdornment: <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>₹</Typography>
                           }}
@@ -312,6 +419,8 @@ const CreateSite = () => {
                           </Typography>
                         </Box>
                       </Grid>
+                      {success && <Typography color="success.main" sx={{ mb: 2 }}>{success}</Typography>}
+                      {error && <Typography color="error.main" sx={{ mb: 2 }}>{error}</Typography>}
                       <Grid item xs={12}>
                         <Button
                           type="submit"
@@ -319,6 +428,7 @@ const CreateSite = () => {
                           size="large"
                           fullWidth
                           startIcon={<AddIcon />}
+                          disabled={loading}
                           sx={{
                             background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
                             borderRadius: 3,
@@ -334,7 +444,7 @@ const CreateSite = () => {
                             }
                           }}
                         >
-                          Create Site with Budget Configuration
+                          {loading ? 'Creating...' : 'Create Site with Budget Configuration'}
                         </Button>
                       </Grid>
                     </Grid>

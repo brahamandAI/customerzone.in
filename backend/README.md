@@ -39,9 +39,14 @@ A comprehensive, real-time expense management system backend built with Node.js,
 ```
 backend/
 ├── models/           # MongoDB schemas
-│   ├── User.js      # User model with roles and permissions
-│   ├── Site.js      # Site model with budget management
-│   └── Expense.js   # Expense model with approval workflow
+│   ├── User.js                # User model with roles and permissions
+│   ├── Site.js                # Site model with budget management
+│   ├── Expense.js             # Expense model with approval workflow
+│   ├── ApprovalHistory.js     # Approval history for expenses
+│   ├── Comments.js            # Comments on expenses
+│   ├── Notifications.js       # Notification model
+│   ├── PendingApprovers.js    # Pending approvers for expenses
+│   └── Reports.js             # Report definitions
 ├── routes/          # API route handlers
 │   ├── auth.js      # Authentication routes
 │   ├── users.js     # User management
@@ -52,12 +57,29 @@ backend/
 │   └── notifications.js # Real-time notifications
 ├── middleware/      # Custom middleware
 │   └── auth.js      # Authentication & authorization
-├── logs/           # Application logs
-├── uploads/        # File uploads storage
-├── server.js       # Main server file
-├── package.json    # Dependencies
-└── .env           # Environment variables
+├── services/        # Business logic (e.g., auth.service.js)
+├── scripts/         # Utility/startup scripts (e.g., start.js)
+├── logs/            # Application logs (e.g., combined.log, error.log)
+├── uploads/         # File uploads storage
+│   ├── expenses/            # Expense attachments
+│   └── profile-pictures/    # User profile pictures
+├── tests/           # (Currently empty) Placeholder for backend tests
+├── server.js        # Main server file
+├── package.json     # Dependencies
+├── MONGOOSE_MIGRATION_SUMMARY.md # Database migration summary
+├── create-sites.js          # Utility: create initial sites
+├── generate-password-hash.js# Utility: generate password hashes
+├── test-env.js              # Utility: test environment variables
+├── test-mongoose-migration.js # Utility: test mongoose migrations
+├── test-server.js           # Utility: test server startup
+└── .env                     # Environment variables
 ```
+
+> **Note:**
+> - The project uses two ports: one for the backend API (default: 5000, set via the PORT environment variable) and one for the frontend React app (default: 3000, set via the frontend's configuration). Make sure both are running and the ports do not conflict.
+> - The root of the project also contains scripts and guides for deployment and integration, such as `setup-single-port.js`, `SINGLE_PORT_GUIDE.md`, `simple-test.js`, `test-single-port.js`, `test-submit.js`, and `working-backend.js`.
+> - The `frontend/` directory contains the React frontend. See its own README or documentation for setup and usage.
+> - The `client/` and `server/` directories are present but currently unused/empty.
 
 ## 🔧 Installation & Setup
 
@@ -76,12 +98,16 @@ backend/
    Update `.env` file with your configuration:
    ```env
    NODE_ENV=development
-   PORT=5000
-   FRONTEND_URL=http://localhost:3000
+   PORT=5001         # Backend API port
+   FRONTEND_URL=http://localhost:3000  # Frontend URL (default port 3000)
    MONGODB_URI=mongodb://localhost:27017/rakshak-expense
    JWT_SECRET=your-super-secret-jwt-key
    JWT_EXPIRE=24h
    ```
+   > **Note:**
+   > - The backend runs on the port specified by `PORT` (default: 5001).
+   > - The frontend (React app) runs on its own port (default: 3000, see `frontend/package.json` or `frontend/.env`).
+   > - Ensure both servers are running and accessible to each other.
 
 3. **Start Development Server**
    ```bash
@@ -92,6 +118,18 @@ backend/
    ```bash
    npm start
    ```
+
+## 🗂️ Utility & Test Scripts
+
+- **create-sites.js**: Script to create initial site entries in the database.
+- **generate-password-hash.js**: Utility to generate bcrypt password hashes for user setup.
+- **test-env.js**: Script to quickly test if environment variables are loaded correctly.
+- **test-mongoose-migration.js**: Script to test mongoose migration logic.
+- **test-server.js**: Script to test server startup and basic health.
+- **scripts/start.js**: Startup script for custom server initialization.
+
+## 🗃️ Database Migration
+- **MONGOOSE_MIGRATION_SUMMARY.md**: Contains details and summary of all mongoose migrations applied to the database.
 
 ## 🔐 Authentication & Authorization
 

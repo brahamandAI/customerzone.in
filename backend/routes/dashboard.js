@@ -42,6 +42,14 @@ router.get('/overview', protect, asyncHandler(async (req, res) => {
 
   dashboardData.userStats = userStats;
 
+  // Add system-wide pending approvals count (all expenses not yet finally approved/rejected)
+  const pendingApprovalsCount = await Expense.countDocuments({
+    status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2'] },
+    isActive: true,
+    isDeleted: false
+  });
+  dashboardData.pendingApprovalsCount = pendingApprovalsCount;
+
   // Role-specific data
   if (userRole === 'submitter') {
     // Recent expenses

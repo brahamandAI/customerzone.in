@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, Paper, Grid, Card, CardContent, Fade, Zoom, Button, TextField, FormControl, InputLabel, Select, MenuItem, Chip, Avatar, Alert, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Switch, FormControlLabel, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import WarningIcon from '@mui/icons-material/Warning';
 import NotificationsIcon from '@mui/icons-material/Notifications';
@@ -8,82 +8,51 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import { siteAPI } from '../services/api';
 
 const BudgetAlerts = () => {
-  const [alerts, setAlerts] = useState([
-    {
-      id: 1,
-      site: 'Mumbai Site A',
-      category: 'Fuel',
-      threshold: 50000,
-      current: 45000,
-      percentage: 90,
-      status: 'active',
-      type: 'warning',
-      budgetLimit: 50000,
-      remainingBudget: 5000
-    },
-    {
-      id: 2,
-      site: 'Delhi Site B',
-      category: 'Equipment',
-      threshold: 100000,
-      current: 95000,
-      percentage: 95,
-      status: 'active',
-      type: 'critical',
-      budgetLimit: 100000,
-      remainingBudget: 5000
-    },
-    {
-      id: 3,
-      site: 'Bangalore Site C',
-      category: 'Maintenance',
-      threshold: 75000,
-      current: 60000,
-      percentage: 80,
-      status: 'inactive',
-      type: 'info',
-      budgetLimit: 75000,
-      remainingBudget: 15000
-    }
-  ]);
+  const [alerts, setAlerts] = useState([]);
+  const [siteBudgets, setSiteBudgets] = useState([]);
 
-  // Sample site budgets from site creation
-  const siteBudgets = [
-    {
-      site: 'Mumbai Site A',
-      clientId: 'CL001',
-      monthlyBudget: 200000,
-      categoryBudgets: {
-        'Petty': 30000,
-        'Material': 50000,
-        'Misc. Expense': 20000,
-        'Fuel': 50000,
-        'Equipment': 25000,
-        'Maintenance': 15000,
-        'Travel': 5000
-      },
-      currentUtilization: 85,
-      alertThreshold: 80
-    },
-    {
-      site: 'Delhi Site B',
-      clientId: 'CL002',
-      monthlyBudget: 300000,
-      categoryBudgets: {
-        'Petty': 40000,
-        'Material': 80000,
-        'Misc. Expense': 30000,
-        'Fuel': 60000,
-        'Equipment': 50000,
-        'Maintenance': 25000,
-        'Travel': 11000
-      },
-      currentUtilization: 92,
-      alertThreshold: 80
+  useEffect(() => {
+    async function fetchBudgetAlerts() {
+      try {
+        const res = await siteAPI.getBudgetAlerts();
+        if (res.data.success && Array.isArray(res.data.data)) {
+          // Map backend data to alert and siteBudgets format
+          const backendAlerts = res.data.data.map((item, idx) => ({
+            id: item.siteId || idx,
+            site: item.clientName || item.siteName || 'Unknown',
+            category: 'All', // If backend has category, use it
+            threshold: item.budgetAlertThreshold || 0,
+            current: item.utilizationPercentage ? Math.round((item.utilizationPercentage / 100) * (item.totalBudget || 0)) : 0,
+            percentage: item.utilizationPercentage || 0,
+            status: 'active',
+            type: (item.utilizationPercentage >= item.budgetAlertThreshold) ? 'warning' : 'info',
+            budgetLimit: item.totalBudget || 0,
+            remainingBudget: item.remainingBudget || 0
+          }));
+          setAlerts(backendAlerts);
+          // Site budgets summary
+          setSiteBudgets(res.data.data.map(item => ({
+            site: item.clientName || item.siteName || 'Unknown',
+            clientId: item.clientId || '',
+            monthlyBudget: item.totalBudget || 0,
+            categoryBudgets: item.categoryBudgets || {},
+            currentUtilization: item.utilizationPercentage || 0,
+            alertThreshold: item.budgetAlertThreshold || 0
+          })));
+        } else {
+          setAlerts([]);
+          setSiteBudgets([]);
+        }
+      } catch (err) {
+        setAlerts([]);
+        setSiteBudgets([]);
+      }
     }
-  ];
+    fetchBudgetAlerts();
+  }, []);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingAlert, setEditingAlert] = useState(null);

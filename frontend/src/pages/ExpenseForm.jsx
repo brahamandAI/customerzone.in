@@ -10,7 +10,7 @@ import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import { useNavigate } from 'react-router-dom';
-import { expenseAPI, authAPI } from '../services/api';
+import { expenseAPI, authAPI, siteAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const ExpenseForm = () => {
@@ -25,6 +25,7 @@ const ExpenseForm = () => {
   const [openSnackbar, setOpenSnackbar] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const [sites, setSites] = useState([]);
 
   const handleInputChange = (field) => (event) => {
     setFormData({
@@ -197,14 +198,11 @@ const ExpenseForm = () => {
     }
   };
 
-  const sites = [
-    'Mumbai Site A',
-    'Mumbai Site B', 
-    'Delhi Site A',
-    'Delhi Site B',
-    'Bangalore Site A',
-    'Chennai Site A'
-  ];
+  useEffect(() => {
+    siteAPI.getAll().then(res => {
+      setSites(res.data.data || []);
+    });
+  }, []);
 
   const categories = [
     'Travel',
@@ -407,8 +405,8 @@ const ExpenseForm = () => {
                             onChange={handleInputChange('site')}
                             required
                           >
-                            {sites.map((site) => (
-                              <MenuItem key={site} value={site}>{site}</MenuItem>
+                            {sites.map(site => (
+                              <MenuItem key={site._id} value={site.code}>{site.name}</MenuItem>
                             ))}
                           </Select>
                         </FormControl>

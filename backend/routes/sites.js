@@ -6,47 +6,52 @@ const Site = require('../models/Site');
 router.post('/create', async (req, res) => {
   try {
     const {
-      clientId,
-      clientName,
-      address,
+      name,
+      code,
+      location,
       contactPerson,
       phone,
       email,
-      monthlyBudget,
-      budgetAlertThreshold,
+      budget,
+      vehicleKmLimit,
       categoryBudgets,
-      vehicleKmLimit
+      createdBy
     } = req.body;
 
     // Validate required fields
-    if (!clientId || !clientName || !address || !contactPerson || !phone || !email || !monthlyBudget) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'All required fields must be provided' 
+    if (
+      !name || !code ||
+      !location || !location.address || !location.city || !location.state || !location.pincode ||
+      !budget || !budget.monthly || !budget.yearly ||
+      !createdBy
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'All required fields must be provided'
       });
     }
 
     // Check if site already exists
-    const existingSite = await Site.findOne({ clientId });
+    const existingSite = await Site.findOne({ code });
     if (existingSite) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Site with this Client ID already exists' 
+      return res.status(400).json({
+        success: false,
+        message: 'Site with this code already exists'
       });
     }
 
     // Create new site
     const newSite = new Site({
-      clientId,
-      clientName,
-      address,
+      name,
+      code,
+      location,
       contactPerson,
       phone,
       email,
-      monthlyBudget,
-      budgetAlertThreshold: budgetAlertThreshold || 80,
-      categoryBudgets: categoryBudgets || [],
-      vehicleKmLimit: vehicleKmLimit || 1000
+      budget,
+      vehicleKmLimit,
+      categoryBudgets,
+      createdBy
     });
 
     await newSite.save();
