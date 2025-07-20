@@ -15,7 +15,7 @@
     "heroku-postbuild": "npm run install-all && npm run build",
     "dev-single-port": "concurrently \"npm run server-single\" \"npm run client-single\"",
     "server-single": "cd backend && PORT=5001 npm run dev",
-    "client-single": "cd frontend && PORT=3000 npm start"
+    "client-single": "cd frontend && PORT=3004 npm start"
   },
   "keywords": [
     "expense",
@@ -28,7 +28,7 @@
   "author": "ROBUSTRIX",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "concurrently": "^8.2.2"
   },
   "engines": {
     "node": ">=14.0.0",
