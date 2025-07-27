@@ -61,7 +61,7 @@ const CreateUser = () => {
   });
 
   const departments = ['Finance', 'Operations', 'HR', 'IT', 'Sales', 'Marketing'];
-  const roles = ['SUBMITTER', 'L1_APPROVER', 'L2_APPROVER', 'L3_APPROVER'];
+  const roles = ['SUBMITTER', 'L1_APPROVER', 'L2_APPROVER', 'L3_APPROVER', 'L4_APPROVER'];
   const [sites, setSites] = useState([]);
 
   useEffect(() => {
@@ -78,10 +78,80 @@ const CreateUser = () => {
       localStorage.setItem('selectedSiteCode', value);
     }
     
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    // If role is being changed, set appropriate permissions
+    if (name === 'role') {
+      let newPermissions = {
+        canCreateExpenses: false,
+        canApproveExpenses: false,
+        canManageUsers: false,
+        canManageSites: false,
+        canViewReports: false,
+        canManageBudgets: false
+      };
+      
+      if (value === 'L4_APPROVER') {
+        // L4 Approver: admin functionality without expense creation/approval
+        newPermissions = {
+          canCreateExpenses: false,
+          canApproveExpenses: false,
+          canManageUsers: true,
+          canManageSites: true,
+          canViewReports: true,
+          canManageBudgets: true
+        };
+      } else if (value === 'L3_APPROVER') {
+        // L3 Approver: full permissions
+        newPermissions = {
+          canCreateExpenses: true,
+          canApproveExpenses: true,
+          canManageUsers: true,
+          canManageSites: true,
+          canViewReports: true,
+          canManageBudgets: true
+        };
+      } else if (value === 'L2_APPROVER') {
+        // L2 Approver: some admin permissions
+        newPermissions = {
+          canCreateExpenses: true,
+          canApproveExpenses: true,
+          canManageUsers: false,
+          canManageSites: false,
+          canViewReports: true,
+          canManageBudgets: false
+        };
+      } else if (value === 'L1_APPROVER') {
+        // L1 Approver: basic approval permissions
+        newPermissions = {
+          canCreateExpenses: true,
+          canApproveExpenses: true,
+          canManageUsers: false,
+          canManageSites: false,
+          canViewReports: true,
+          canManageBudgets: false
+        };
+      } else if (value === 'SUBMITTER') {
+        // Submitter: only create expenses
+        newPermissions = {
+          canCreateExpenses: true,
+          canApproveExpenses: false,
+          canManageUsers: false,
+          canManageSites: false,
+          canViewReports: false,
+          canManageBudgets: false
+        };
+      }
+      
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        ...newPermissions
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleSwitchChange = (name) => (event) => {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
@@ -12,76 +12,87 @@ export const useSocket = () => {
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const socketRef = useRef(null);
   const { user } = useAuth();
 
+  // Function to fetch notifications
+  const fetchNotifications = async () => {
+    if (!user) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      console.log('Fetching notifications for user:', user._id);
+      const response = await axios.get('/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.data?.data?.notifications) {
+        setNotifications(response.data.data.notifications.map(n => ({
+          ...n,
+          timestamp: new Date(n.timestamp)
+        })));
+      }
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+    }
+  };
+
   useEffect(() => {
-    if (!user) {
-      console.log('No user found, skipping socket connection');
+    // Skip if no user or socket already exists
+    if (!user || socketRef.current) {
+      console.log('Socket initialization skipped:', { 
+        hasUser: !!user, 
+        hasSocket: !!socketRef.current 
+      });
       return;
     }
 
-    // Get JWT token from user or localStorage
-    const token = user?.token || localStorage.getItem('token');
-
-    // 1. Fetch notifications from API on mount, with Authorization header
-    axios.get('/api/notifications', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-      .then(res => {
-        if (res.data && res.data.data && res.data.data.notifications) {
-          setNotifications(res.data.data.notifications.map(n => ({
-            ...n,
-            // Ensure timestamp is a Date object
-            timestamp: new Date(n.timestamp)
-          })));
-        }
-      })
-      .catch(err => {
-        console.error('Failed to fetch notifications:', err);
-      });
-
-    console.log('Attempting to connect socket with user:', user);
-
-    // Initialize socket connection
+    console.log('Creating new socket connection for user:', user._id);
     const newSocket = io('http://localhost:5001', {
       withCredentials: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000,
-      transports: ['websocket', 'polling'] // Try WebSocket first, then fallback to polling
+      transports: ['websocket'],
+      auth: { userId: user._id, role: user.role }
     });
+
+    // Store socket reference first
+    socketRef.current = newSocket;
+    setSocket(newSocket);
 
     // Connection event handlers
     newSocket.on('connect', () => {
-      console.log('Socket connected successfully! Socket ID:', newSocket.id);
+      console.log('Socket connected:', newSocket.id);
       
-      // Join role-based room based on user role
-      if (user.role) {
-        console.log('Joining role room:', user.role);
-        newSocket.emit('join-role-room', user.role);
-      }
+      // Join rooms
+      const roleRoom = `role-${user.role.toLowerCase()}`;
+      const userRoom = `user-${user._id}`;
+      console.log('Joining rooms:', { roleRoom, userRoom });
+      
+      newSocket.emit('join-role-room', roleRoom);
+      newSocket.emit('join-user-room', userRoom);
+
+      // Fetch initial data
+      fetchNotifications();
     });
 
     newSocket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error.message);
-      console.error('Connection details:', {
-        url: 'http://localhost:5001',
-        transport: newSocket.io.engine.transport.name,
-        userId: user.id,
+      console.error('Socket connection failed:', {
+        error: error.message,
+        userId: user._id,
         role: user.role
       });
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.log('Socket disconnected. Reason:', reason);
+      console.log('Socket disconnected:', { reason, socketId: newSocket.id });
+      if (reason === 'transport close' || reason === 'ping timeout') {
+        console.log('Attempting reconnection...');
+        newSocket.connect();
+      }
     });
 
-    // Handle new expense notifications
+    // Handle notifications
     newSocket.on('new_expense_submitted', (expense) => {
-      console.log('Received new expense notification:', expense);
+      console.log('New expense notification:', expense.expenseNumber);
       setNotifications(prev => [{
         id: expense.expenseId,
         type: 'new_expense',
@@ -93,9 +104,21 @@ export const SocketProvider = ({ children }) => {
       }, ...prev]);
     });
 
-    // Handle budget exceeded alerts
+    newSocket.on('expense-updated', (data) => {
+      console.log('Expense update notification:', data.expenseNumber);
+      setNotifications(prev => [{
+        id: data.expenseId,
+        type: data.status === 'approved' ? 'expense_approved' : 'expense_rejected',
+        title: `Expense ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}`,
+        message: `Expense #${data.expenseNumber} ${data.status} - ₹${data.amount.toLocaleString()}`,
+        data: data,
+        timestamp: new Date(data.timestamp),
+        read: false
+      }, ...prev]);
+    });
+
     newSocket.on('budget_exceeded_alert', (alert) => {
-      console.log('Received budget alert:', alert);
+      console.log('Budget alert notification:', alert.site);
       setNotifications(prev => [{
         id: alert.expenseId,
         type: 'budget_alert',
@@ -107,18 +130,18 @@ export const SocketProvider = ({ children }) => {
       }, ...prev]);
     });
 
-    setSocket(newSocket);
-
-    // Cleanup on unmount
+    // Cleanup function
     return () => {
-      if (newSocket) {
-        console.log('Cleaning up socket connection');
-        newSocket.disconnect();
+      if (socketRef.current) {
+        console.log('Cleaning up socket:', socketRef.current.id);
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
       }
     };
-  }, [user]);
+  }, [user]); // Only depend on user
 
-  // Mark notification as read
+  // Utility functions
   const markNotificationAsRead = (notificationId) => {
     setNotifications(prev =>
       prev.map(notification =>
@@ -129,7 +152,6 @@ export const SocketProvider = ({ children }) => {
     );
   };
 
-  // Clear all notifications
   const clearNotifications = () => {
     setNotifications([]);
   };

@@ -16,6 +16,13 @@ import { useAuth } from '../context/AuthContext';
 const ExpenseForm = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // Block L4 Approver from accessing this page
+  if (user && ['l4_approver', 'L4_APPROVER'].includes(user?.role)) {
+    navigate('/dashboard');
+    return null;
+  }
+  
   const [attachments, setAttachments] = useState([]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [stream, setStream] = useState(null);
@@ -218,9 +225,8 @@ const ExpenseForm = () => {
 
   // Generate expense number
   const generateExpenseNumber = () => {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000);
-    return `EXP-${timestamp}-${random}`;
+    const random = Math.floor(1000 + Math.random() * 9000); // Generates number between 1000-9999
+    return `EXP-${random}`;
   };
 
   const [formData, setFormData] = useState({
@@ -398,13 +404,21 @@ const ExpenseForm = () => {
                       
                       <Grid item xs={12} md={6}>
                         <FormControl fullWidth>
-                          <InputLabel>Site</InputLabel>
                           <Select
-                            value={formData.site}
-                            label="Site"
+                            value={formData.site || ''}
                             onChange={handleInputChange('site')}
                             required
+                            displayEmpty
+                            renderValue={(selected) => {
+                              if (!selected) {
+                                return <em style={{ color: 'rgba(0, 0, 0, 0.38)' }}>Site</em>;
+                              }
+                              return selected;
+                            }}
                           >
+                            <MenuItem value="" disabled>
+                              <em>Site</em>
+                            </MenuItem>
                             {sites.map(site => (
                               <MenuItem key={site._id} value={site.code}>{site.name}</MenuItem>
                             ))}
@@ -414,13 +428,21 @@ const ExpenseForm = () => {
                       
                       <Grid item xs={12} md={6}>
                         <FormControl fullWidth>
-                          <InputLabel>Category</InputLabel>
                           <Select
-                            value={formData.category}
-                            label="Category"
+                            value={formData.category || ''}
                             onChange={handleInputChange('category')}
                             required
+                            displayEmpty
+                            renderValue={(selected) => {
+                              if (!selected) {
+                                return <em style={{ color: 'rgba(0, 0, 0, 0.38)' }}>Category</em>;
+                              }
+                              return selected;
+                            }}
                           >
+                            <MenuItem value="" disabled>
+                              <em>Category</em>
+                            </MenuItem>
                             {categories.map((category) => (
                               <MenuItem key={category} value={category}>{category}</MenuItem>
                             ))}
@@ -526,13 +548,21 @@ const ExpenseForm = () => {
                       
                       <Grid item xs={12} md={6}>
                         <FormControl fullWidth>
-                          <InputLabel>Payment Method</InputLabel>
                           <Select
-                            value={formData.paymentMethod}
-                            label="Payment Method"
+                            value={formData.paymentMethod || ''}
                             onChange={handleInputChange('paymentMethod')}
                             required
+                            displayEmpty
+                            renderValue={(selected) => {
+                              if (!selected) {
+                                return <em style={{ color: 'rgba(0, 0, 0, 0.38)' }}>Payment Method</em>;
+                              }
+                              return selected;
+                            }}
                           >
+                            <MenuItem value="" disabled>
+                              <em>Payment Method</em>
+                            </MenuItem>
                             {paymentMethods.map((method) => (
                               <MenuItem key={method} value={method}>{method}</MenuItem>
                             ))}
@@ -542,12 +572,20 @@ const ExpenseForm = () => {
                       
                       <Grid item xs={12} md={6}>
                         <FormControl fullWidth>
-                          <InputLabel>Priority</InputLabel>
                           <Select
-                            value={formData.priority}
-                            label="Priority"
+                            value={formData.priority || ''}
                             onChange={handleInputChange('priority')}
+                            displayEmpty
+                            renderValue={(selected) => {
+                              if (!selected) {
+                                return <em style={{ color: 'rgba(0, 0, 0, 0.38)' }}>Priority</em>;
+                              }
+                              return selected;
+                            }}
                           >
+                            <MenuItem value="" disabled>
+                              <em>Priority</em>
+                            </MenuItem>
                             <MenuItem value="low">Low</MenuItem>
                             <MenuItem value="normal">Normal</MenuItem>
                             <MenuItem value="high">High</MenuItem>

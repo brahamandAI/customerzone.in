@@ -203,6 +203,7 @@ const expenseRoutes = require('./routes/expenses');
 const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
 const notificationRoutes = require('./routes/notifications');
+const categoryRoutes = require('./routes/categories');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -212,6 +213,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -241,7 +243,8 @@ app.get('/', (req, res) => {
       expenses: '/api/expenses',
       dashboard: '/api/dashboard',
       reports: '/api/reports',
-      notifications: '/api/notifications'
+      notifications: '/api/notifications',
+      categories: '/api/categories'
     },
     features: [
       'Real-time updates via Socket.io',

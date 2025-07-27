@@ -19,16 +19,24 @@ const Reports = () => {
   useEffect(() => {
     async function fetchReports() {
       try {
-        const detailsRes = await reportAPI.getExpenseDetails();
-        const barRes = await reportAPI.getBarData();
-        const pieRes = await reportAPI.getPieData();
-        const summaryRes = await reportAPI.getExpenseSummary();
-        setExpenseData(detailsRes.data.data.expenses || []);
-        setBarData(barRes.data.data || []);
-        setPieData(pieRes.data.data || []);
-        setSummaryStats(summaryRes.data.data || []);
+        const [detailsRes, barRes, pieRes, summaryRes] = await Promise.allSettled([
+          reportAPI.getExpenseDetails(),
+          reportAPI.getBarData(),
+          reportAPI.getPieData(),
+          reportAPI.getExpenseSummary()
+        ]);
+
+        setExpenseData(detailsRes.status === 'fulfilled' ? (detailsRes.value.data.data.expenses || []) : []);
+        setBarData(barRes.status === 'fulfilled' ? (barRes.value.data.data || []) : []);
+        setPieData(pieRes.status === 'fulfilled' ? (pieRes.value.data.data || []) : []);
+        setSummaryStats(summaryRes.status === 'fulfilled' ? (summaryRes.value.data.data || []) : []);
       } catch (err) {
-        // handle error
+        console.error('Error fetching reports:', err);
+        // Set default values to prevent crashes
+        setExpenseData([]);
+        setBarData([]);
+        setPieData([]);
+        setSummaryStats([]);
       }
     }
     fetchReports();

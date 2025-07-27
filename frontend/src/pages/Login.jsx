@@ -102,7 +102,7 @@ const Login = () => {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
-      login(response.data.user); // update context
+      login(response.data.user, response.data.token); // update context with token
       navigate('/dashboard');
     } catch (error) {
       setErrors({ email: 'Invalid credentials' });
@@ -113,31 +113,32 @@ const Login = () => {
 
   const getPermissionsByRole = (role) => {
     const permissions = {
-      submitter: ['submit_expense', 'view_own_expenses', 'view_reports'],
+      submitter: ['submit_expense', 'view_own', 'view_reports'],
       l1_approver: ['submit_expense', 'approve_l1', 'view_approvals', 'view_reports', 'modify_amount'],
       l2_approver: ['submit_expense', 'approve_l2', 'view_approvals', 'view_reports', 'admin_access'],
-      l3_approver: ['submit_expense', 'approve_l3', 'view_approvals', 'view_reports', 'initiate_payment', 'admin_access', 'user_management', 'system_settings']
+      l3_approver: ['submit_expense', 'approve_l3', 'view_approvals', 'view_reports', 'initiate_payment', 'admin_access', 'user_management', 'system_settings'],
+      l4_approver: ['view_reports'] // L4 Approver: only reports
     };
     return permissions[role] || [];
   };
 
   const getRoleIcon = (role) => {
     switch (role) {
-      case 'submitter': return <PersonIcon />;
       case 'l1_approver': return <SecurityIcon />;
       case 'l2_approver': return <BusinessIcon />;
       case 'l3_approver': return <AccountBalanceIcon />;
+      case 'l4_approver': return <VisibilityIcon />;
       default: return <PersonIcon />;
     }
   };
 
   const getRoleColor = (role) => {
     switch (role) {
-      case 'submitter': return '#2196f3';
       case 'l1_approver': return '#ff9800';
       case 'l2_approver': return '#9c27b0';
       case 'l3_approver': return '#4caf50';
-      default: return '#2196f3';
+      case 'l4_approver': return '#2196f3';
+      default: return '#607d8b';
     }
   };
 
@@ -377,6 +378,17 @@ const Login = () => {
                           <Box>
                             <Typography variant="body1">Level 3 Approver</Typography>
                             <Typography variant="caption" color="text.secondary">Finance</Typography>
+                          </Box>
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="l4_approver">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Avatar sx={{ width: 32, height: 32, bgcolor: '#2196f3' }}>
+                            <VisibilityIcon />
+                          </Avatar>
+                          <Box>
+                            <Typography variant="body1">Level 4 Approver</Typography>
+                            <Typography variant="caption" color="text.secondary">Reports Only</Typography>
                           </Box>
                         </Box>
                       </MenuItem>

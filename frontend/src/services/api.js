@@ -28,7 +28,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Clear both token and user data
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Use window.location.href to force a full page reload
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -112,6 +115,8 @@ export const reportAPI = {
   getBudgetUtilization: (params) => api.get('/reports/budget-utilization', { params }),
   getVehicleKM: (params) => api.get('/reports/vehicle-km', { params }),
   getApprovalAnalytics: (params) => api.get('/reports/approval-analytics', { params }),
+  getBarData: (params) => api.get('/reports/expense-summary', { params }), // Use expense summary for bar data
+  getPieData: (params) => api.get('/reports/expense-summary', { params }), // Use expense summary for pie data
 };
 
 // Category API calls

@@ -39,7 +39,7 @@ router.post('/register', [
     .withMessage('Please provide a valid site ID'),
   body('role')
     .optional()
-    .isIn(['submitter', 'l1_approver', 'l2_approver', 'l3_approver'])
+    .isIn(['submitter', 'l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'])
     .withMessage('Invalid role specified')
 ], asyncHandler(async (req, res) => {
   // Check for validation errors
@@ -91,7 +91,7 @@ router.post('/register', [
   const io = req.app.get('io');
   
   // Emit user registration event to admins
-  io.to('role-l3_approver').emit('user-registered', {
+  io.to('role-l3_approver').to('role-l4_approver').emit('user-registered', {
     user: userData,
     timestamp: new Date()
   });
@@ -192,11 +192,10 @@ router.post('/login', [
   // Get Socket.io instance
   const io = req.app.get('io');
   
-  // Emit user login event
-  io.to('role-l3_approver').emit('user-login', {
+  // Emit user login event to admins
+  io.to('role-l3_approver').to('role-l4_approver').emit('user-login', {
     user: userData,
-    timestamp: new Date(),
-    ipAddress: req.ip
+    timestamp: new Date()
   });
 
   res.json({
@@ -217,9 +216,9 @@ router.post('/logout', protect, asyncHandler(async (req, res) => {
   // Get Socket.io instance
   const io = req.app.get('io');
   
-  // Emit user logout event
-  io.to('role-l3_approver').emit('user-logout', {
-    user: req.user,
+  // Emit user logout event to admins
+  io.to('role-l3_approver').to('role-l4_approver').emit('user-logout', {
+    user: userData,
     timestamp: new Date()
   });
 

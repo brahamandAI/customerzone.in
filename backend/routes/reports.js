@@ -53,8 +53,8 @@ router.get('/expense-summary', protect, checkPermission('canViewReports'), async
   };
 
   // Apply role-based filtering
-  if (userRole !== 'l3_approver') {
-    matchFilter.site = req.user.site._id;
+  if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
+    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
   } else if (site) {
     matchFilter.site = site;
   }
@@ -248,8 +248,8 @@ router.get('/expense-details', protect, checkPermission('canViewReports'), async
   }
 
   // Role-based filtering
-  if (userRole !== 'l3_approver') {
-    matchFilter.site = req.user.site._id;
+  if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
+    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
   } else if (site) {
     matchFilter.site = site;
   }
@@ -320,14 +320,14 @@ router.get('/budget-utilization', protect, checkPermission('canViewReports'), as
 
   // Get sites to analyze
   let sitesToAnalyze = [];
-  if (userRole === 'l3_approver') {
+  if (userRole === 'l3_approver' || userRole === 'l4_approver') {
     if (site) {
       sitesToAnalyze = await Site.find({ _id: site, isActive: true });
     } else {
       sitesToAnalyze = await Site.find({ isActive: true });
     }
   } else {
-    sitesToAnalyze = await Site.find({ _id: req.user.site._id, isActive: true });
+    sitesToAnalyze = await Site.find({ _id: req.user.site?._id, isActive: true });
   }
 
   const budgetReport = await Promise.all(sitesToAnalyze.map(async (siteData) => {
@@ -444,8 +444,8 @@ router.get('/vehicle-km', protect, checkPermission('canViewReports'), asyncHandl
   };
 
   // Role-based filtering
-  if (userRole !== 'l3_approver') {
-    matchFilter.site = req.user.site._id;
+  if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
+    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
   } else if (site) {
     matchFilter.site = site;
   }
@@ -543,7 +543,7 @@ router.get('/vehicle-km', protect, checkPermission('canViewReports'), asyncHandl
 // @desc    Get approval analytics report
 // @route   GET /api/reports/approval-analytics
 // @access  Private (L3 approvers only)
-router.get('/approval-analytics', protect, authorize('l3_approver'), asyncHandler(async (req, res) => {
+router.get('/approval-analytics', protect, authorize('l3_approver', 'l4_approver'), asyncHandler(async (req, res) => {
   const { startDate, endDate, approver } = req.query;
 
   // Build date filter
@@ -678,7 +678,7 @@ router.get('/approval-analytics', protect, authorize('l3_approver'), asyncHandle
 router.get('/dashboard-summary', protect, asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const userRole = req.user.role;
-  const userSite = req.user.site._id;
+  const userSite = req.user.site?._id; // Use optional chaining to avoid error
 
   const currentMonth = new Date();
   currentMonth.setDate(1);
@@ -713,7 +713,7 @@ router.get('/dashboard-summary', protect, asyncHandler(async (req, res) => {
   };
 
   // Role-specific stats
-  if (['l1_approver', 'l2_approver', 'l3_approver'].includes(userRole)) {
+  if (['l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'].includes(userRole)) {
     const pendingApprovals = await Expense.countDocuments({
       'pendingApprovers.approver': userId,
       isActive: true,
@@ -723,7 +723,7 @@ router.get('/dashboard-summary', protect, asyncHandler(async (req, res) => {
     summary.approvals = { pending: pendingApprovals };
   }
 
-  if (userRole === 'l3_approver') {
+  if (userRole === 'l3_approver' || userRole === 'l4_approver') {
     // System-wide stats
     const systemStats = await Expense.aggregate([
       {

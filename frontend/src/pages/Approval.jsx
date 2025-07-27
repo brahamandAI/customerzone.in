@@ -11,10 +11,12 @@ import CategoryIcon from '@mui/icons-material/Category';
 import PersonIcon from '@mui/icons-material/Person';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import { useAuth } from '../context/AuthContext';
-import { io } from 'socket.io-client';
+import { useSocket } from '../context/SocketContext';
 import { expenseAPI } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const Approval = () => {
+  const navigate = useNavigate();
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,101 +29,136 @@ const Approval = () => {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const { user, getUserRole, canApproveLevel } = useAuth();
+  const { socket } = useSocket();
 
-  // Move fetchApprovals here so it's in scope for all handlers
+  // Block L4 Approver from accessing this page
+  if (user && ['l4_approver', 'L4_APPROVER'].includes(user?.role)) {
+    navigate('/dashboard');
+    return null;
+  }
+
+  // Debug: Log user role to check if L3 Approver changes should be applied
+  console.log('Current user role:', user?.role);
+  console.log('Is L3 Approver:', user?.role?.toLowerCase() === 'l3_approver');
+  
+  // Get user role in correct format
+  const userRole = getUserRole(); // This returns UPPERCASE
+  const isL3Approver = userRole === 'L3_APPROVER';
+  console.log('User role from context:', userRole);
+  console.log('Is L3 Approver (correct check):', isL3Approver);
+
+  // Fetch approvals
   const fetchApprovals = async () => {
     setLoading(true);
     try {
+      console.log('Fetching pending approvals');
       const response = await expenseAPI.getPendingApprovals();
-      const data = response.data;
-      if (data.success) {
+      if (response.data.success) {
         const userRole = getUserRole();
-        let filteredExpenses = data.data;
+        let filteredExpenses = response.data.data;
+        
+        console.log('Raw expenses from API:', filteredExpenses);
+        
+        // Filter based on role
         if (userRole === 'L1_APPROVER') {
-          filteredExpenses = data.data.filter(expense => expense.status === 'submitted');
+          filteredExpenses = response.data.data.filter(expense => expense.status === 'submitted');
         } else if (userRole === 'L2_APPROVER') {
-          filteredExpenses = data.data.filter(expense => expense.status === 'approved_l1');
+          filteredExpenses = response.data.data.filter(expense => expense.status === 'approved_l1');
         } else if (userRole === 'L3_APPROVER') {
-          filteredExpenses = data.data.filter(expense => expense.status === 'approved_l2');
+          filteredExpenses = response.data.data.filter(expense => expense.status === 'approved_l2');
+          console.log('L3 Approver - All expenses:', response.data.data);
+          console.log('L3 Approver - Filtered expenses (approved_l2):', filteredExpenses);
         }
-        const transformedApprovals = filteredExpenses.map(expense => ({
-          id: expense.id,
-          expenseNumber: expense.expenseNumber,
-          title: expense.title,
-          amount: expense.amount,
-          site: expense.site.name,
-          category: expense.category,
-          submitter: expense.submittedBy.name,
-          date: new Date(expense.expenseDate).toISOString().split('T')[0],
-          description: expense.description,
-          status: (
-            expense.status === 'submitted' ||
-            expense.status === 'approved_l1' ||
-            expense.status === 'approved_l2'
-          ) ? 'pending' : expense.status.toLowerCase(),
-          approvalLevel: expense.status === 'submitted' ? 'L1' :
-                       expense.status === 'approved_l1' ? 'L2' :
-                       expense.status === 'approved_l2' ? 'L3' : 'L1',
-          priority: expense.priority || 'normal',
-          attachments: expense.attachments?.length || 0,
-          modifiedAmount: expense.modifiedAmount,
-          approvalComments: expense.approvalHistory || []
-        }));
+
+        // Transform data with error handling
+        const transformedApprovals = filteredExpenses.map(expense => {
+          try {
+            return {
+              id: expense.id || expense._id,
+              expenseNumber: expense.expenseNumber,
+              title: expense.title,
+              amount: expense.amount,
+              site: expense.site?.name || 'Unknown Site',
+              category: expense.category,
+              submitter: expense.submittedBy?.name || 'Unknown User',
+              date: new Date(expense.expenseDate).toISOString().split('T')[0],
+              description: expense.description,
+              status: expense.status === 'submitted' || expense.status === 'approved_l1' || expense.status === 'approved_l2' 
+                ? 'pending' 
+                : expense.status.toLowerCase(),
+              approvalLevel: expense.status === 'submitted' ? 'L1' :
+                            expense.status === 'approved_l1' ? 'L2' :
+                            expense.status === 'approved_l2' ? 'L3' : 'L1',
+              priority: expense.priority || 'normal',
+              attachments: expense.attachments?.length || 0,
+              modifiedAmount: expense.modifiedAmount,
+              approvalComments: expense.approvalHistory || []
+            };
+          } catch (error) {
+            console.error('Error transforming expense:', error, expense);
+            return null;
+          }
+        }).filter(Boolean); // Remove any null entries
+
+        console.log('Transformed approvals:', transformedApprovals);
         setApprovals(transformedApprovals);
       } else {
-        setError('Failed to fetch approvals');
+        console.error('API returned success: false');
+        setError('Failed to fetch approvals - API error');
       }
     } catch (err) {
       console.error('Error fetching approvals:', err);
-      setError('Failed to fetch approvals');
+      console.error('Error details:', err.response?.data);
+      setError('Failed to fetch approvals - Network error');
+      // Set empty array to prevent crashes
+      setApprovals([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch pending approvals
+  // Initial data fetch
   useEffect(() => {
     fetchApprovals();
+  }, []);
 
-    // Setup WebSocket for real-time updates
-    const socket = io("http://localhost:5001", { 
-      withCredentials: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
+  // Socket event handlers
+  useEffect(() => {
+    if (!socket) return;
+
+    console.log('Setting up approval socket handlers');
+
+    // Handle new expense submissions
+    socket.on('new_expense_submitted', () => {
+      console.log('New expense submitted, refreshing approvals');
+      fetchApprovals();
     });
 
-    socket.on('connect', () => {
-      const userRole = getUserRole();
-      if (userRole) {
-        socket.emit('join-role-room', `role-${userRole}`);
+    // Handle expense updates (approvals/rejections)
+    socket.on('expense-updated', (data) => {
+      console.log('Expense updated, refreshing approvals:', data);
+      // Only refresh if it's not a payment processing
+      if (data.status !== 'payment_processed') {
+        fetchApprovals();
       }
     });
 
-    socket.on('new-expense-submitted', (data) => {
-      // Add new expense to the list if it's pending L1 approval
-      setApprovals(prev => [{
-        id: data.id,
-        expenseNumber: data.expenseNumber,
-        title: data.title,
-        amount: data.amount,
-        site: data.siteName,
-        category: data.category,
-        submitter: data.submitterName,
-        date: new Date().toISOString().split('T')[0],
-        description: data.description,
-        status: 'pending',
-        approvalLevel: 'L1',
-        priority: 'normal',
-        attachments: data.attachments?.length || 0,
-        modifiedAmount: null,
-        approvalComments: []
-      }, ...prev]);
+    // Handle payment processing specifically
+    socket.on('expense_payment_processed', (data) => {
+      console.log('Payment processed, removing expense from list:', data);
+      // Remove the processed expense from the local list without refetching
+      setApprovals(prevApprovals => 
+        prevApprovals.filter(approval => approval.id !== data.expenseId)
+      );
     });
-        
+
     return () => {
-      socket.disconnect();
+      console.log('Cleaning up approval socket handlers');
+      socket.off('new_expense_submitted');
+      socket.off('expense-updated');
+      socket.off('expense_payment_processed');
     };
-  }, []);
+  }, [socket]);
 
   const levelMap = { L1: 1, L2: 2, L3: 3 };
 
@@ -194,6 +231,43 @@ const Approval = () => {
     } catch (error) {
       console.error('Error rejecting expense:', error);
       setSnackbarMessage('Failed to reject expense. Please try again.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handlePayment = async (id) => {
+    try {
+      const response = await expenseAPI.approveExpense(id, {
+        action: 'payment',
+        level: 3, // L3 level
+        approverId: user?.id,
+        comments: approvalComment || 'Payment processed by Finance',
+        paymentAmount: modifiedAmount ? parseFloat(modifiedAmount) : selectedApproval?.amount,
+        paymentDate: new Date().toISOString()
+      });
+
+      const data = response.data;
+      
+      if (data.success) {
+        // Show success message
+        setSnackbarMessage('Payment processed successfully! Expense marked as paid.');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        
+        // Update local state - remove the processed expense from the list
+        setApprovals(approvals.filter(approval => approval.id !== id));
+        setOpenDialog(false);
+        setApprovalComment('');
+        setModifiedAmount('');
+        setAmountChangeReason('');
+        // Don't call fetchApprovals() since the expense is no longer in pending approvals
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      setSnackbarMessage('Failed to process payment. Please try again.');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
@@ -315,7 +389,7 @@ const Approval = () => {
               </Avatar>
             </Box>
             <Typography variant="h3" fontWeight={900} color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
-              Expense Approvals
+              {isL3Approver ? 'Payment Processing' : 'Expense Approvals'}
             </Typography>
           </Box>
 
@@ -338,7 +412,7 @@ const Approval = () => {
                       {pendingApprovals}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Pending Approvals
+                    {isL3Approver ? 'Pending Payments' : 'Pending Approvals'}
                   </Typography>
                 </Paper>
               </Zoom>
@@ -361,7 +435,7 @@ const Approval = () => {
                     {approvedCount}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Approved This Month
+                    {isL3Approver ? 'Processed Payments' : 'Approved This Month'}
                   </Typography>
                 </Paper>
               </Zoom>
@@ -528,24 +602,41 @@ const Approval = () => {
                       
                       {approval.status === 'pending' && canApprove(approval) && (
                         <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Button
-                            variant="contained"
-                            color="success"
-                            size="small"
-                            onClick={() => handleOpenDialog(approval)}
-                            sx={{ minWidth: 'auto', px: 2 }}
-                          >
-                            {approval.approvalLevel === 'L3' ? 'Final Approve' : 'Approve'}
-                          </Button>
-                          <Button
-                            variant="contained"
-                            color="error"
-                            size="small"
-                            onClick={() => handleOpenDialog(approval)}
-                            sx={{ minWidth: 'auto', px: 2 }}
-                          >
-                            Reject
-                          </Button>
+                          {isL3Approver ? (
+                            // L3 Approver (Finance) - Payment only
+                            <Button
+                              variant="contained"
+                              color="primary"
+                              size="small"
+                              onClick={() => handleOpenDialog(approval)}
+                              sx={{ minWidth: 'auto', px: 2 }}
+                              startIcon={<AttachMoneyIcon />}
+                            >
+                              Process Payment
+                            </Button>
+                          ) : (
+                            // L1 and L2 Approvers - Approve/Reject
+                            <>
+                              <Button
+                                variant="contained"
+                                color="success"
+                                size="small"
+                                onClick={() => handleOpenDialog(approval)}
+                                sx={{ minWidth: 'auto', px: 2 }}
+                              >
+                                {approval.approvalLevel === 'L3' ? 'Final Approve' : 'Approve'}
+                              </Button>
+                              <Button
+                                variant="contained"
+                                color="error"
+                                size="small"
+                                onClick={() => handleOpenDialog(approval)}
+                                sx={{ minWidth: 'auto', px: 2 }}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
                         </Box>
                       )}
                       
@@ -570,7 +661,11 @@ const Approval = () => {
       {/* Approval Dialog */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>
-          {selectedApproval && `Review Expense: ${selectedApproval.title}`}
+          {selectedApproval && (
+            isL3Approver 
+              ? `Process Payment: ${selectedApproval.title}`
+              : `Review Expense: ${selectedApproval.title}`
+          )}
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
@@ -602,7 +697,7 @@ const Approval = () => {
             {/* Amount Modification (All Approvers) */}
             <Box sx={{ p: 2, bgcolor: 'rgba(102, 126, 234, 0.1)', borderRadius: 2, border: '1px solid rgba(102, 126, 234, 0.2)' }}>
               <Typography variant="h6" gutterBottom color="#667eea">
-                Amount Modification
+                {isL3Approver ? 'Payment Amount' : 'Amount Modification'}
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
@@ -616,11 +711,11 @@ const Approval = () => {
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <TextField
-                    label="Modified Amount (₹)"
+                    label={isL3Approver ? 'Payment Amount (₹)' : 'Modified Amount (₹)'}
                     type="number"
                     value={modifiedAmount}
                     onChange={(e) => setModifiedAmount(e.target.value)}
-                    placeholder={`Enter new amount`}
+                    placeholder={`Enter ${isL3Approver ? 'payment' : 'new'} amount`}
                     fullWidth
                     helperText={modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount ? 
                       `Difference: ₹${(parseFloat(modifiedAmount) - selectedApproval?.amount).toLocaleString()}` : 
@@ -649,12 +744,12 @@ const Approval = () => {
 
             {/* Approval Comments */}
             <TextField
-              label="Approval Comment"
+              label={isL3Approver ? 'Payment Comment' : 'Approval Comment'}
               multiline
               rows={3}
               value={approvalComment}
               onChange={(e) => setApprovalComment(e.target.value)}
-              placeholder="Add your approval/rejection comments..."
+              placeholder={isL3Approver ? 'Add payment processing comments...' : 'Add your approval/rejection comments...'}
               fullWidth
             />
 
@@ -711,22 +806,38 @@ const Approval = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={() => selectedApproval && handleReject(selectedApproval.id)}
-            color="error"
-            variant="contained"
-            disabled={modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount && !amountChangeReason}
-          >
-            Reject
-          </Button>
-          <Button 
-            onClick={() => selectedApproval && handleApprove(selectedApproval.id)}
-            color="success"
-            variant="contained"
-            disabled={modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount && !amountChangeReason}
-          >
-            {selectedApproval?.approvalLevel === 'L3' ? 'Final Approve & Initiate Payment' : 'Approve & Forward'}
-          </Button>
+          {isL3Approver ? (
+            // L3 Approver (Finance) - Payment only
+            <Button 
+              onClick={() => selectedApproval && handlePayment(selectedApproval.id)}
+              color="primary"
+              variant="contained"
+              disabled={modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount && !amountChangeReason}
+              startIcon={<AttachMoneyIcon />}
+            >
+              Process Payment
+            </Button>
+          ) : (
+            // L1 and L2 Approvers - Approve/Reject
+            <>
+              <Button 
+                onClick={() => selectedApproval && handleReject(selectedApproval.id)}
+                color="error"
+                variant="contained"
+                disabled={modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount && !amountChangeReason}
+              >
+                Reject
+              </Button>
+              <Button 
+                onClick={() => selectedApproval && handleApprove(selectedApproval.id)}
+                color="success"
+                variant="contained"
+                disabled={modifiedAmount && parseFloat(modifiedAmount) !== selectedApproval?.amount && !amountChangeReason}
+              >
+                {selectedApproval?.approvalLevel === 'L3' ? 'Final Approve & Initiate Payment' : 'Approve & Forward'}
+              </Button>
+            </>
+          )}
         </DialogActions>
       </Dialog>
 

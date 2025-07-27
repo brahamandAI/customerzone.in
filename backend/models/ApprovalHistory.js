@@ -19,7 +19,7 @@ const approvalHistorySchema = new mongoose.Schema({
   },
   action: {
     type: String,
-    enum: ['approved', 'rejected', 'returned'],
+    enum: ['approved', 'rejected', 'returned', 'payment_processed'],
     required: true
   },
   comments: {
@@ -36,7 +36,14 @@ const approvalHistorySchema = new mongoose.Schema({
     type: Number,
     min: 0
   },
-  modificationReason: String
+  modificationReason: String,
+  paymentAmount: {
+    type: Number,
+    min: 0
+  },
+  paymentDate: {
+    type: Date
+  }
 }, {
   timestamps: true
 });

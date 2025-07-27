@@ -29,8 +29,8 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: {
-      values: ['submitter', 'l1_approver', 'l2_approver', 'l3_approver'],
-      message: 'Role must be either submitter, l1_approver, l2_approver, or l3_approver'
+      values: ['submitter', 'l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'],
+      message: 'Role must be either submitter, l1_approver, l2_approver, l3_approver, or l4_approver'
     },
     default: 'submitter'
   },
@@ -249,6 +249,16 @@ userSchema.pre('save', function(next) {
         this.permissions = {
           canCreateExpenses: true,
           canApproveExpenses: true,
+          canManageUsers: true,
+          canManageSites: true,
+          canViewReports: true,
+          canManageBudgets: true
+        };
+        break;
+      case 'l4_approver':
+        this.permissions = {
+          canCreateExpenses: false,
+          canApproveExpenses: false,
           canManageUsers: true,
           canManageSites: true,
           canViewReports: true,

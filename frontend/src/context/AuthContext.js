@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -13,23 +14,56 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Validate token and initialize user
+  const validateToken = async () => {
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (!token || !storedUser) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // Try to get current user profile to validate token
+      const response = await authAPI.getProfile();
+      if (response.data.success) {
+        const userData = response.data.data;
+        console.log('Token validated, user data:', userData);
+        setUser(userData);
+        setIsAuthenticated(true);
+        // Update localStorage with fresh user data
+        localStorage.setItem('user', JSON.stringify(userData));
+      } else {
+        throw new Error('Invalid token response');
+      }
+    } catch (error) {
+      console.error('Token validation failed:', error);
+      // Clear invalid data
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+      setIsAuthenticated(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Initialize user from localStorage
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const userData = JSON.parse(storedUser);
-      console.log('Initializing user from localStorage:', userData);
-      setUser(userData);
-      setIsAuthenticated(true);
-    }
+    validateToken();
   }, []);
 
-  const login = (userData) => {
+  const login = (userData, token) => {
     console.log('Logging in user with data:', userData);
     setUser(userData);
     setIsAuthenticated(true);
     localStorage.setItem('user', JSON.stringify(userData));
+    if (token) {
+      localStorage.setItem('token', token);
+    }
   };
 
   const logout = () => {
@@ -37,7 +71,30 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
   };
+
+  // Refresh token periodically
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const refreshInterval = setInterval(async () => {
+        try {
+          const response = await authAPI.getProfile();
+          if (response.data.success) {
+            const userData = response.data.data;
+            setUser(userData);
+            localStorage.setItem('user', JSON.stringify(userData));
+            console.log('Token refreshed successfully');
+          }
+        } catch (error) {
+          console.error('Token refresh failed:', error);
+          // Don't logout on refresh failure, just log the error
+        }
+      }, 5 * 60 * 1000); // Refresh every 5 minutes
+
+      return () => clearInterval(refreshInterval);
+    }
+  }, [isAuthenticated, user]);
 
   const getUserRole = () => {
     const role = (user?.role || 'submitter').toUpperCase();
@@ -51,7 +108,8 @@ export const AuthProvider = ({ children }) => {
       'submitter': 1,
       'l1_approver': 2,
       'l2_approver': 3,
-      'l3_approver': 4
+      'l3_approver': 4,
+      'l4_approver': 5
     };
     
     const hasPermission = roleHierarchy[userRole] >= roleHierarchy[requiredRole];
@@ -61,6 +119,10 @@ export const AuthProvider = ({ children }) => {
 
   const canApproveLevel = (level) => {
     const userRole = getUserRole().toLowerCase();
+    // L4 Approver cannot approve any level
+    if (userRole === 'l4_approver') {
+      return false;
+    }
     return userRole === `l${level}_approver`;
   };
 
@@ -69,7 +131,8 @@ export const AuthProvider = ({ children }) => {
       'submitter': 'Expense Submitter',
       'l1_approver': 'Regional Manager',
       'l2_approver': 'Admin',
-      'l3_approver': 'Finance Manager'
+      'l3_approver': 'Finance Manager',
+      'l4_approver': 'L4 Approver'
     };
     return roleNames[role] || role;
   };
@@ -77,6 +140,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     isAuthenticated,
+    isLoading,
     login,
     logout,
     getUserRole,

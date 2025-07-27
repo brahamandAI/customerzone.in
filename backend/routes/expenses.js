@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const Expense = require('../models/Expense');
 const User = require('../models/User');
 const Site = require('../models/Site');
@@ -11,7 +11,7 @@ const PendingApprover = require('../models/PendingApprovers');
 const Comment = require('../models/Comments');
 
 // File upload route
-router.post('/upload', async (req, res) => {
+router.post('/upload', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver'), async (req, res) => {
   try {
     if (!req.files || !req.files.file) {
       return res.status(400).json({
@@ -60,7 +60,7 @@ router.post('/upload', async (req, res) => {
 });
 
 // Create new expense
-router.post('/create', async (req, res) => {
+router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver'), async (req, res) => {
   try {
     const {
       expenseNumber,
@@ -263,12 +263,21 @@ router.get('/submitter/:submitterId', async (req, res) => {
 });
 
 // Get expenses for approval (pending expenses)
-router.get('/pending', protect, async (req, res) => {
+router.get('/pending', protect, authorize('l1_approver', 'l2_approver', 'l3_approver'), async (req, res) => {
   try {
     const userRole = req.user.role;
-    let statusFilter = {};
+    const userId = req.user._id;
+    
+    // Get expenses where user is a pending approver
+    const pendingApprovals = await PendingApprover.find({
+      approver: userId,
+      status: 'pending'
+    }).select('expense');
+
+    const pendingExpenseIds = pendingApprovals.map(pa => pa.expense);
     
     // Role-based filtering
+    let statusFilter = {};
     if (userRole === 'L1_APPROVER') {
       statusFilter = { status: 'submitted' };
     } else if (userRole === 'L2_APPROVER') {
@@ -281,6 +290,7 @@ router.get('/pending', protect, async (req, res) => {
     }
     
     const expenses = await Expense.find({
+      _id: { $in: pendingExpenseIds },
       ...statusFilter,
       isActive: true,
       isDeleted: false
@@ -339,7 +349,7 @@ router.get('/:expenseId', async (req, res) => {
 });
 
 // Update expense status (approval/rejection)
-router.put('/:expenseId/approve', protect, async (req, res) => {
+router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver', 'l3_approver'), async (req, res) => {
   try {
     const { expenseId } = req.params;
     const { 
@@ -349,7 +359,9 @@ router.put('/:expenseId/approve', protect, async (req, res) => {
       comments, 
       modifiedAmount, 
       modificationReason,
-      action // 'approve' or 'reject'
+      action, // 'approve', 'reject', or 'payment'
+      paymentAmount,
+      paymentDate
     } = req.body;
 
     // Prefer authenticated user ID if available
@@ -377,13 +389,15 @@ router.put('/:expenseId/approve', protect, async (req, res) => {
       level: typeof level === 'string' ? parseInt(level.replace('L', '')) : parseInt(level),
       approver: approverId,
       expense: expenseId,
-      action: action === 'approve' ? 'approved' : 'rejected',
+      action: action === 'approve' ? 'approved' : action === 'payment' ? 'payment_processed' : 'rejected',
       comments: comments || '',
       date: new Date(),
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
       modifiedAmount: modifiedAmount ? parseFloat(modifiedAmount) : undefined,
-      modificationReason
+      modificationReason,
+      paymentAmount: paymentAmount ? parseFloat(paymentAmount) : undefined,
+      paymentDate: paymentDate ? new Date(paymentDate) : undefined
     });
 
     await approvalHistoryRecord.save();
@@ -393,6 +407,7 @@ router.put('/:expenseId/approve', protect, async (req, res) => {
     
     const updateData = {
       status: action === 'reject' ? 'rejected' : 
+              action === 'payment' ? 'payment_processed' :
               levelNum === 1 ? 'approved_l1' :
               levelNum === 2 ? 'approved_l2' :
               levelNum === 3 ? 'approved_l3' : 'submitted',
@@ -403,6 +418,13 @@ router.put('/:expenseId/approve', protect, async (req, res) => {
     if (modifiedAmount !== undefined && modifiedAmount !== null) {
       updateData.amount = parseFloat(modifiedAmount);
       updateData.modificationReason = modificationReason;
+    }
+
+    // Add payment details if payment action
+    if (action === 'payment') {
+      updateData.paymentAmount = paymentAmount ? parseFloat(paymentAmount) : parseFloat(modifiedAmount || expense.amount);
+      updateData.paymentDate = paymentDate ? new Date(paymentDate) : new Date();
+      updateData.paymentProcessedBy = approverId;
     }
 
     // Update the expense
@@ -435,19 +457,130 @@ router.put('/:expenseId/approve', protect, async (req, res) => {
 
     // Emit notifications based on action and level
     if (action === 'approve') {
-      if (levelNum === 1) {
-        // Notify L2 approvers
-        io.to('role-l2_approver').emit('expense_approved_l1', notificationData);
-      } else if (levelNum === 2) {
-        // Notify L3 approvers
-        io.to('role-l3_approver').emit('expense_approved_l2', notificationData);
-      } else if (levelNum === 3) {
-        // Notify submitter of final approval
-        io.to(`user-${updatedExpense.submittedBy._id}`).emit('expense_approved_final', notificationData);
+      console.log('Emitting approval notification for level:', levelNum);
+      
+      const socketData = {
+        ...notificationData,
+        status: 'approved',
+        amount: modifiedAmount || updatedExpense.amount,
+        category: updatedExpense.category,
+        siteName: updatedExpense.site.name,
+        siteId: updatedExpense.site._id,
+        timestamp: new Date()
+      };
+      
+      console.log('Socket data to be emitted:', socketData);
+
+      // Normalize role names to lowercase
+      const l1Room = 'role-l1_approver';
+      const l2Room = 'role-l2_approver';
+      const l3Room = 'role-l3_approver';
+
+      // Always emit to the specific user's room
+      if (approverId) {
+        const userRoom = `user-${approverId}`;
+        console.log('Emitting to specific approver:', userRoom);
+        io.to(userRoom).emit('expense-updated', socketData);
       }
+
+      // Emit to appropriate role rooms
+      if (levelNum === 1) {
+        console.log('L1 Approval - Emitting to rooms:', { l1Room, l2Room });
+        // Notify L1 approvers about their approval
+        io.to(l1Room).emit('expense-updated', socketData);
+        // Notify L2 approvers about pending approval
+        io.to(l2Room).emit('expense_approved_l1', socketData);
+      } else if (levelNum === 2) {
+        console.log('L2 Approval - Emitting to rooms:', { l2Room, l3Room });
+        // Notify L2 approvers about their approval
+        io.to(l2Room).emit('expense-updated', socketData);
+        // Notify L3 approvers about pending approval
+        io.to(l3Room).emit('expense_approved_l2', socketData);
+      } else if (levelNum === 3) {
+        console.log('L3 Approval - Emitting to room:', l3Room);
+        // Notify L3 approvers about final approval
+        io.to(l3Room).emit('expense-updated', socketData);
+        // Notify submitter
+        io.to(`user-${updatedExpense.submittedBy._id}`).emit('expense_approved_final', socketData);
+      }
+
+      // Broadcast to all connected clients that need to update their dashboards
+      console.log('Broadcasting expense update to all relevant rooms');
+      io.emit('dashboard-update', socketData);
+    } else if (action === 'payment') {
+      // Handle payment processing
+      console.log('Emitting payment notification for L3:', levelNum);
+      
+      const socketData = {
+        ...notificationData,
+        status: 'payment_processed',
+        amount: paymentAmount || modifiedAmount || updatedExpense.amount,
+        category: updatedExpense.category,
+        siteName: updatedExpense.site.name,
+        siteId: updatedExpense.site._id,
+        paymentAmount: paymentAmount || modifiedAmount || updatedExpense.amount,
+        paymentDate: paymentDate || new Date(),
+        timestamp: new Date()
+      };
+      
+      console.log('Payment socket data to be emitted:', socketData);
+
+      // Emit to L3 approvers (finance team)
+      const l3Room = 'role-l3_approver';
+      
+      // Emit to specific approver
+      if (approverId) {
+        const userRoom = `user-${approverId}`;
+        console.log('Emitting payment to specific approver:', userRoom);
+        io.to(userRoom).emit('expense-updated', socketData);
+      }
+
+      // Emit to L3 room
+      io.to(l3Room).emit('expense-updated', socketData);
+      
+      // Emit payment processed event to L3 approver
+      io.to(l3Room).emit('expense_payment_processed', socketData);
+      
+      // Notify submitter about payment
+      io.to(`user-${updatedExpense.submittedBy._id}`).emit('expense_payment_processed', socketData);
+
+      // Broadcast update
+      console.log('Broadcasting payment update to all relevant rooms');
+      io.emit('dashboard-update', socketData);
     } else {
-      // Notify submitter of rejection
-      io.to(`user-${updatedExpense.submittedBy._id}`).emit('expense_rejected', notificationData);
+      // Handle rejection
+      const socketData = {
+        ...notificationData,
+        status: 'rejected',
+        amount: modifiedAmount || updatedExpense.amount,
+        category: updatedExpense.category,
+        siteName: updatedExpense.site.name,
+        siteId: updatedExpense.site._id,
+        timestamp: new Date()
+      };
+      
+      console.log('Emitting rejection notification:', socketData);
+      
+      // Normalize role name to lowercase
+      const roleRoom = `role-${userRole.toLowerCase()}`;
+      console.log('Emitting to role room:', roleRoom);
+      
+      // Emit to specific approver
+      if (approverId) {
+        const userRoom = `user-${approverId}`;
+        console.log('Emitting to specific approver:', userRoom);
+        io.to(userRoom).emit('expense-updated', socketData);
+      }
+
+      // Emit to role room
+      io.to(roleRoom).emit('expense-updated', socketData);
+
+      // Notify submitter
+      io.to(`user-${updatedExpense.submittedBy._id}`).emit('expense_rejected', socketData);
+
+      // Broadcast update
+      console.log('Broadcasting expense rejection to all relevant rooms');
+      io.emit('dashboard-update', socketData);
     }
 
     // After updating the expense and before sending response, handle next level PendingApprover creation
@@ -482,6 +615,9 @@ router.put('/:expenseId/approve', protect, async (req, res) => {
         // Remove L3 PendingApprover for this expense and approver
         await PendingApprover.deleteMany({ expense: expenseId, level: 3, approver: approverId });
       }
+    } else if (action === 'payment') {
+      // Remove L3 PendingApprover for this expense and approver (payment completes the process)
+      await PendingApprover.deleteMany({ expense: expenseId, level: 3, approver: approverId });
     } else if (action === 'reject') {
       // Remove all PendingApprovers for this expense if rejected
       await PendingApprover.deleteMany({ expense: expenseId });
@@ -489,7 +625,8 @@ router.put('/:expenseId/approve', protect, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Expense ${action === 'reject' ? 'rejected' : 'approved'} successfully`,
+      message: action === 'payment' ? 'Payment processed successfully' : 
+               `Expense ${action === 'reject' ? 'rejected' : 'approved'} successfully`,
       data: updatedExpense
     });
 

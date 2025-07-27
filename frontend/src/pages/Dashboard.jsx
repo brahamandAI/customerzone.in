@@ -11,13 +11,14 @@ import PendingIcon from '@mui/icons-material/Pending';
 import AddIcon from '@mui/icons-material/Add';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import { dashboardAPI } from '../services/api';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const { socket } = useSocket();
   const [stats, setStats] = useState({
     totalExpenses: 0,
     monthlyExpenses: 0,
@@ -28,99 +29,214 @@ const Dashboard = () => {
   });
   const [topCategories, setTopCategories] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchDashboard() {
-      try {
-        const res = await dashboardAPI.getOverview();
-        console.log('DASHBOARD API RESPONSE:', res.data); // Debug log
-        if (res.data.success) {
-          // Always use the new pendingApprovalsCount for the Pending Approvals card
-          setStats(prev => ({
-            ...prev,
-            pendingApprovals: res.data.data.pendingApprovalsCount || 0,
-            totalAmount: res.data.data.userStats?.totalAmount || 0,
-            totalExpenses: res.data.data.userStats?.totalExpenses || 0,
-            approvedThisMonth: res.data.data.approvalStats?.approvedCount || 0,
-            budgetUtilization: res.data.data.budgetUtilization || 0
-          }));
-          setTopCategories(res.data.data.topCategories || []);
-          setRecentActivities(res.data.data.recentActivities || []);
-        }
-      } catch (err) {
-        // handle error
-      }
+  // Show loading while user is being loaded
+  if (isLoading || !user) {
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        background: 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)'
+      }}>
+        <div style={{ 
+          background: 'rgba(255,255,255,0.9)', 
+          padding: '2rem', 
+          borderRadius: '10px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Loading Dashboard...</div>
+          <div style={{ fontSize: '0.9rem', color: '#666' }}>Please wait while we load your data</div>
+        </div>
+      </Box>
+    );
+  }
+
+  // Calculate stats based on user role
+  const calculateStats = (data) => {
+    // Add null check for user
+    if (!user) {
+      return {
+        pendingApprovals: 0,
+        totalAmount: 0,
+        totalExpenses: 0,
+        approvedThisMonth: 0,
+        budgetUtilization: 0
+      };
     }
-    fetchDashboard();
-    // Socket event for real-time dashboard refresh
-    const socket = io("http://localhost:5001", {
-      withCredentials: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
-    });
-    socket.on('expense-updated', () => {
-      fetchDashboard();
-    });
-    return () => {
-      socket.disconnect();
-    };
-  }, [user]);
 
-  // Socket.IO integration (recentActivities update remains as is)
+    const isApprover = user.role?.toLowerCase().includes('approver');
+    const isL4Approver = user.role?.toLowerCase() === 'l4_approver';
+    
+    return {
+      pendingApprovals: isL4Approver ? 0 : (data.pendingApprovalsCount || 0),
+      totalAmount: isApprover 
+        ? (data.monthlyStats?.monthlyApprovedAmount || 0) 
+        : (data.userStats?.totalAmount || 0),
+      totalExpenses: isApprover
+        ? (data.monthlyStats?.monthlyApprovedCount || 0)
+        : (data.userStats?.totalExpenses || 0),
+      approvedThisMonth: isL4Approver ? 0 : (data.approvalStats?.approvedCount || 0),
+      budgetUtilization: data.budgetUtilization || 0
+    };
+  };
+
+  // Quick actions based on user role
+  const getQuickActions = () => {
+    // Add null check for user
+    if (!user) {
+      return [
+        {
+          title: 'Submit Expense',
+          description: 'Create new expense report',
+          icon: <AddIcon />,
+          color: '#2196f3',
+          action: () => navigate('/submit-expense')
+        }
+      ];
+    }
+
+    const userRole = user.role?.toLowerCase();
+    const isSubmitter = userRole === 'submitter';
+    const isL4Approver = userRole === 'l4_approver';
+    
+    const actions = [];
+
+    // Submit Expense for submitter
+    if (isSubmitter) {
+      actions.push({
+        title: 'Submit Expense',
+        description: 'Create new expense report',
+        icon: <AddIcon />,
+        color: '#2196f3',
+        action: () => navigate('/submit-expense')
+      });
+    }
+
+    // View Approvals for approvers (not submitter, not L4)
+    if (!isSubmitter && !isL4Approver) {
+      actions.push({
+        title: 'View Approvals',
+        description: 'Check pending approvals',
+        icon: <ApprovalIcon />,
+        color: '#ff9800',
+        action: () => navigate('/approval')
+      });
+    }
+
+    // Reports for non-submitters
+    if (!isSubmitter) {
+      actions.push({
+        title: 'Generate Report',
+        description: 'Create expense reports',
+        icon: <TrendingUpIcon />,
+        color: '#4caf50',
+        action: () => navigate('/reports')
+      });
+    }
+
+    // Budget Alerts for all users
+    actions.push({
+      title: 'Budget Alerts',
+      description: 'Manage budget alerts',
+      icon: <WarningIcon />,
+      color: '#f44336',
+      action: () => navigate('/budget-alerts')
+    });
+
+    return actions;
+  };
+
+  // Fetch dashboard data
+  const fetchDashboard = async (forceRefresh = false) => {
+    try {
+      setDashboardLoading(true);
+      console.log('Fetching dashboard data for user:', user);
+      console.log('User role:', user?.role);
+      const res = await dashboardAPI.getOverview(forceRefresh ? { timestamp: Date.now() } : {});
+      console.log('Dashboard API response:', res);
+      if (res.data.success) {
+        const data = res.data.data;
+        console.log('Dashboard data received:', data);
+        
+        setStats(calculateStats(data));
+        setTopCategories(data.topCategories || []);
+        setRecentActivities(data.recentActivities || []);
+      } else {
+        console.error('Dashboard API returned success: false');
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard:', err);
+      console.error('Error details:', err.response?.data);
+      // Set default values to prevent infinite loading
+      setStats({
+        totalExpenses: 0,
+        monthlyExpenses: 0,
+        pendingApprovals: 0,
+        approvedThisMonth: 0,
+        budgetUtilization: 0,
+        savings: 0
+      });
+      setTopCategories([]);
+      setRecentActivities([]);
+    } finally {
+      setDashboardLoading(false);
+    }
+  };
+
+  // Initial data fetch
   useEffect(() => {
-    const socket = io("http://localhost:5001", { 
-      withCredentials: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
-    });
-    socket.on('connect', () => {
-      if (user?.role) {
-        socket.emit('join-role-room', `role-${user.role}`);
-      }
-      if (user?.site) {
-        socket.emit('join-site-room', user.site);
-      }
-    });
-    socket.on('expense-updated', (data) => {
+    fetchDashboard();
+  }, []);
+
+  // Socket event handlers
+  useEffect(() => {
+    if (!socket) return;
+
+    console.log('Setting up dashboard socket handlers');
+
+    const handleExpenseUpdate = async (data) => {
+      console.log('Expense update received:', data);
+      
+      // Add the new activity immediately for better UX
       const newActivity = {
         id: Date.now(),
         type: data.status === 'approved' ? 'expense_approved' : 'expense_rejected',
         title: `Expense ${data.status}`,
-        description: `${data.siteName} - ₹${data.amount.toLocaleString()}`,
+        description: `${data.siteName} - ₹${(data.amount || 0).toLocaleString()}`,
         time: 'Just now',
         status: data.status
       };
       setRecentActivities(prev => [newActivity, ...prev.slice(0, 9)]);
-    });
-    socket.on('budget-alert', (data) => {
-      const newActivity = {
-        id: Date.now(),
-        type: 'budget_alert',
-        title: 'Budget Alert',
-        description: `${data.siteName} - ${data.percentage}% used`,
-        time: 'Just now',
-        status: 'warning'
-      };
-      setRecentActivities(prev => [newActivity, ...prev.slice(0, 9)]);
-    });
-    socket.on('new-expense-submitted', (data) => {
-      const newActivity = {
-        id: Date.now(),
-        type: 'expense_submitted',
-        title: 'New Expense Submitted',
-        description: `${data.siteName} - ₹${data.amount.toLocaleString()}`,
-        time: 'Just now',
-        status: 'pending'
-      };
-      setRecentActivities(prev => [newActivity, ...prev.slice(0, 9)]);
-    });
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-    });
-    return () => {
-      socket.disconnect();
+
+      // Wait a short moment for backend to process the change
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Force a fresh data fetch
+      await fetchDashboard(true);
     };
-  }, [user]);
+
+    // Handle all expense-related events
+    socket.on('expense-updated', handleExpenseUpdate);
+    socket.on('expense_approved_final', handleExpenseUpdate);
+    socket.on('new_expense_submitted', handleExpenseUpdate);
+
+    // Handle direct dashboard updates
+    socket.on('dashboard-update', () => {
+      console.log('Direct dashboard update received');
+      fetchDashboard(true);
+    });
+
+    return () => {
+      console.log('Cleaning up dashboard socket handlers');
+      socket.off('expense-updated');
+      socket.off('expense_approved_final');
+      socket.off('new_expense_submitted');
+      socket.off('dashboard-update');
+    };
+  }, [socket]);
 
   const getActivityIcon = (type) => {
     switch (type) {
@@ -142,36 +258,7 @@ const Dashboard = () => {
     }
   };
 
-  const quickActions = [
-    {
-      title: 'Submit Expense',
-      description: 'Create new expense report',
-      icon: <AddIcon />,
-      color: '#667eea',
-      action: () => navigate('/submit-expense')
-    },
-    {
-      title: 'View Approvals',
-      description: 'Check pending approvals',
-      icon: <ApprovalIcon />,
-      color: '#ff9800',
-      action: () => navigate('/approval')
-    },
-    {
-      title: 'Generate Report',
-      description: 'Create expense reports',
-      icon: <TrendingUpIcon />,
-      color: '#4caf50',
-      action: () => navigate('/reports')
-    },
-    {
-      title: 'Budget Alerts',
-      description: 'Manage budget alerts',
-      icon: <WarningIcon />,
-      color: '#f44336',
-      action: () => navigate('/budget-alerts')
-    }
-  ];
+  const quickActions = getQuickActions();
 
   return (
     <Box sx={{ 
@@ -179,7 +266,11 @@ const Dashboard = () => {
       background: 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
       p: 4,
       position: 'relative',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      '@keyframes spin': {
+        '0%': { transform: 'rotate(0deg)' },
+        '100%': { transform: 'rotate(360deg)' }
+      }
     }}>
       {/* Animated background */}
       <Box sx={{
@@ -212,6 +303,21 @@ const Dashboard = () => {
             <Typography variant="h3" fontWeight={900} color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
               Dashboard
             </Typography>
+            {dashboardLoading && (
+              <Box sx={{ ml: 2, display: 'flex', alignItems: 'center' }}>
+                <Typography variant="body2" color="white" sx={{ mr: 1 }}>
+                  Loading data...
+                </Typography>
+                <div style={{ 
+                  width: '16px', 
+                  height: '16px', 
+                  border: '2px solid rgba(255,255,255,0.3)', 
+                  borderTop: '2px solid white', 
+                  borderRadius: '50%', 
+                  animation: 'spin 1s linear infinite' 
+                }} />
+              </Box>
+            )}
           </Box>
 
           {/* Key Metrics */}
@@ -245,62 +351,67 @@ const Dashboard = () => {
               </Zoom>
             </Grid>
             
-            <Grid item xs={12} md={3}>
-              <Zoom in style={{ transitionDelay: '400ms' }}>
-                <Paper elevation={16} sx={{ 
-                  p: 3, 
-                  borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  textAlign: 'center'
-                }}>
-                  <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
-                    <PendingIcon />
-                  </Avatar>
-                  <Typography variant="h4" fontWeight={700} color="#ff9800">
-                    {Number(stats.pendingApprovals || 0).toLocaleString()}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Pending Approvals
-                  </Typography>
-                  <Chip 
-                    label="Action Required" 
-                    size="small" 
-                    sx={{ mt: 1, bgcolor: 'rgba(255, 152, 0, 0.1)', color: '#ff9800' }}
-                  />
-                </Paper>
-              </Zoom>
-            </Grid>
-            
-            <Grid item xs={12} md={3}>
-              <Zoom in style={{ transitionDelay: '600ms' }}>
-                <Paper elevation={16} sx={{ 
-                  p: 3, 
-                  borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  textAlign: 'center'
-                }}>
-                  <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
-                    <CheckCircleIcon />
-                  </Avatar>
-                  <Typography variant="h4" fontWeight={700} color="#4caf50">
-                    {Number(stats.approvedThisMonth || 0).toLocaleString()}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Approved This Month
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
-                    <TrendingUpIcon sx={{ color: '#4caf50', fontSize: 16, mr: 0.5 }} />
-                    <Typography variant="caption" color="#4caf50">
-                      +8.3% vs last month
-                    </Typography>
-                  </Box>
-                </Paper>
-              </Zoom>
-            </Grid>
+            {/* Hide approval cards for L4 Approver and submitter */}
+            {user?.role?.toLowerCase() !== 'l4_approver' && user?.role?.toLowerCase() !== 'submitter' && (
+              <>
+                <Grid item xs={12} md={3}>
+                  <Zoom in style={{ transitionDelay: '400ms' }}>
+                    <Paper elevation={16} sx={{ 
+                      p: 3, 
+                      borderRadius: 3, 
+                      background: 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center'
+                    }}>
+                      <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
+                        <PendingIcon />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight={700} color="#ff9800">
+                        {Number(stats.pendingApprovals || 0).toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Pending Approvals
+                      </Typography>
+                      <Chip 
+                        label="Action Required" 
+                        size="small" 
+                        sx={{ mt: 1, bgcolor: 'rgba(255, 152, 0, 0.1)', color: '#ff9800' }}
+                      />
+                    </Paper>
+                  </Zoom>
+                </Grid>
+                
+                <Grid item xs={12} md={3}>
+                  <Zoom in style={{ transitionDelay: '600ms' }}>
+                    <Paper elevation={16} sx={{ 
+                      p: 3, 
+                      borderRadius: 3, 
+                      background: 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center'
+                    }}>
+                      <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
+                        <CheckCircleIcon />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight={700} color="#4caf50">
+                        {Number(stats.approvedThisMonth || 0).toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Approved This Month
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
+                        <TrendingUpIcon sx={{ color: '#4caf50', fontSize: 16, mr: 0.5 }} />
+                        <Typography variant="caption" color="#4caf50">
+                          +8.3% vs last month
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  </Zoom>
+                </Grid>
+              </>
+            )}
             
             <Grid item xs={12} md={3}>
               <Zoom in style={{ transitionDelay: '800ms' }}>
@@ -348,7 +459,7 @@ const Dashboard = () => {
                   </Typography>
                   
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {quickActions.map((action, index) => (
+                    {getQuickActions().map((action, index) => (
                       <Card 
                         key={index}
                         sx={{ 

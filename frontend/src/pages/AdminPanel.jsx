@@ -26,21 +26,41 @@ const AdminPanel = () => {
   useEffect(() => {
     async function fetchAdminStats() {
       try {
-        const usersRes = await userAPI.getUsers();
-        const sitesRes = await siteAPI.getAll();
-        const catsRes = await categoryAPI.getAll();
-        const approvalsRes = await approvalAPI.getPending();
+        const [usersRes, sitesRes, catsRes, approvalsRes] = await Promise.allSettled([
+          userAPI.getUsers(),
+          siteAPI.getAll(),
+          categoryAPI.getAll(),
+          approvalAPI.getPending()
+        ]);
+
         setStats({
-          totalUsers: usersRes.data.data.length,
-          totalSites: sitesRes.data.data.length,
-          totalCategories: catsRes.data.data.length,
-          activeUsers: usersRes.data.data.filter(u => u.status === 'active').length,
-          pendingApprovals: approvalsRes.data.data.length,
+          totalUsers: usersRes.status === 'fulfilled' ? usersRes.value.data.data.length : 0,
+          totalSites: sitesRes.status === 'fulfilled' ? sitesRes.value.data.data.length : 0,
+          totalCategories: catsRes.status === 'fulfilled' ? catsRes.value.data.data.length : 0,
+          activeUsers: usersRes.status === 'fulfilled' ? usersRes.value.data.data.filter(u => u.status === 'active').length : 0,
+          pendingApprovals: approvalsRes.status === 'fulfilled' ? approvalsRes.value.data.data.length : 0,
           systemHealth: 100 // or fetch from backend if available
         });
-        setRecentUsers(usersRes.data.data.slice(0, 5)); // latest 5 users
+        
+        if (usersRes.status === 'fulfilled') {
+          const users = usersRes.value.data.data;
+          console.log('Users data structure:', users);
+          setRecentUsers(users.slice(0, 5)); // latest 5 users
+        } else {
+          setRecentUsers([]);
+        }
       } catch (err) {
-        // handle error
+        console.error('Error fetching admin stats:', err);
+        // Set default values to prevent crashes
+        setStats({
+          totalUsers: 0,
+          totalSites: 0,
+          totalCategories: 0,
+          activeUsers: 0,
+          pendingApprovals: 0,
+          systemHealth: 100
+        });
+        setRecentUsers([]);
       }
     }
     fetchAdminStats();
@@ -340,40 +360,52 @@ const AdminPanel = () => {
                   </Typography>
                   
                   <List sx={{ p: 0 }}>
-                    {recentUsers.map((user, index) => (
-                      <React.Fragment key={user.id}>
-                        <ListItem sx={{ px: 0, py: 1 }}>
-                          <ListItemIcon sx={{ minWidth: 40 }}>
-                            <Avatar sx={{ bgcolor: user.status === 'active' ? '#4caf50' : '#f44336', width: 32, height: 32 }}>
-                              <PeopleIcon />
-                            </Avatar>
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={
-                              <Typography variant="body2" fontWeight={500}>
-                                {user.name}
-                              </Typography>
-                            }
-                            secondary={
-                              <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                  {user.role} • {user.site}
+                    {recentUsers && recentUsers.length > 0 ? (
+                      recentUsers.map((user, index) => (
+                        <React.Fragment key={user._id || user.id || index}>
+                          <ListItem sx={{ px: 0, py: 1 }}>
+                            <ListItemIcon sx={{ minWidth: 40 }}>
+                              <Avatar sx={{ bgcolor: user.status === 'active' ? '#4caf50' : '#f44336', width: 32, height: 32 }}>
+                                <PeopleIcon />
+                              </Avatar>
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={
+                                <Typography variant="body2" fontWeight={500}>
+                                  {user.name || user.fullName || 'Unknown User'}
                                 </Typography>
-                                <Typography variant="caption" display="block" color="text.secondary">
-                                  Last login: {user.lastLogin}
-                                </Typography>
-                              </Box>
-                            }
-                          />
-                          <Chip 
-                            label={user.status} 
-                            size="small"
-                            color={user.status === 'active' ? 'success' : 'error'}
-                          />
-                        </ListItem>
-                        {index < recentUsers.length - 1 && <Divider />}
-                      </React.Fragment>
-                    ))}
+                              }
+                              secondary={
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {user.role} • {user.site?.name || user.site || 'No Site'}
+                                  </Typography>
+                                  <Typography variant="caption" display="block" color="text.secondary">
+                                    Last login: {user.lastLogin || 'Never'}
+                                  </Typography>
+                                </Box>
+                              }
+                            />
+                            <Chip 
+                              label={user.status || 'unknown'} 
+                              size="small"
+                              color={user.status === 'active' ? 'success' : 'error'}
+                            />
+                          </ListItem>
+                          {index < recentUsers.length - 1 && <Divider />}
+                        </React.Fragment>
+                      ))
+                    ) : (
+                      <ListItem>
+                        <ListItemText
+                          primary={
+                            <Typography variant="body2" color="text.secondary">
+                              No recent users found
+                            </Typography>
+                          }
+                        />
+                      </ListItem>
+                    )}
                   </List>
                 </Paper>
               </Zoom>

@@ -196,7 +196,8 @@ const expenseSchema = new mongoose.Schema({
       'approved',
       'rejected',
       'cancelled',
-      'reimbursed'
+      'reimbursed',
+      'payment_processed'
     ],
     default: 'draft'
   },
@@ -213,6 +214,19 @@ const expenseSchema = new mongoose.Schema({
     max: 3
   },
   
+  // Payment Information
+  paymentAmount: {
+    type: Number,
+    min: [0, 'Payment amount cannot be negative']
+  },
+  paymentDate: {
+    type: Date
+  },
+  paymentProcessedBy: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'User'
+  },
+  
   // Approval History
   approvalHistory: [{
     level: {
@@ -226,7 +240,7 @@ const expenseSchema = new mongoose.Schema({
     },
     action: {
       type: String,
-      enum: ['approved', 'rejected', 'returned'],
+      enum: ['approved', 'rejected', 'returned', 'payment_processed'],
       required: true
     },
     comments: {

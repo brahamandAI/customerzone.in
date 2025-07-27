@@ -38,28 +38,15 @@ const NavBar = () => {
   };
 
   // Role-based navigation items
-  const getNavItems = () => {
-    const baseItems = [
-      { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> }
-    ];
-
-    // All users can submit expenses
-    baseItems.push({ label: 'Submit Expense', path: '/submit-expense', icon: <ReceiptIcon /> });
-
-    // Only approvers and admins can see approval page
-    if (hasPermission('l1_approver')) {
-      baseItems.push({ label: 'Approval', path: '/approval', icon: <ApprovalIcon /> });
-    }
-
-    // Only L3 approvers can see admin panel
-    if (hasPermission('l2_approver')) {
-      baseItems.push({ label: 'Admin', path: '/admin', icon: <AdminPanelSettingsIcon /> });
-    }
-
-    return baseItems;
-  };
-
-  const navItems = getNavItems();
+  const navItems = [
+    { label: 'Dashboard', path: '/dashboard', show: true },
+    { label: 'Submit Expense', path: '/submit-expense', show: user && ['submitter', 'SUBMITTER'].includes(user?.role) },
+    { label: 'Reports', path: '/reports', show: user && !['submitter', 'SUBMITTER'].includes(user?.role) },
+    // Only show Approvals for non-L4 approvers and non-submitters
+    { label: 'Approvals', path: '/approval', show: user && !['l4_approver', 'L4_APPROVER', 'submitter', 'SUBMITTER'].includes(user?.role) },
+    // L2, L3, and L4 approvers can see admin panel
+    { label: 'Admin', path: '/admin', show: hasPermission('l2_approver') || ['l4_approver', 'L4_APPROVER'].includes(user?.role) },
+  ].filter(item => item.show);
 
   return (
     <AppBar position="static" sx={{ 

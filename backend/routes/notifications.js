@@ -260,7 +260,7 @@ router.put('/preferences', protect, asyncHandler(async (req, res) => {
 // @desc    Send real-time notification
 // @route   POST /api/notifications/send
 // @access  Private (L3 approvers only)
-router.post('/send', protect, authorize('l3_approver'), asyncHandler(async (req, res) => {
+router.post('/send', protect, authorize('l3_approver', 'l4_approver'), asyncHandler(async (req, res) => {
   const { type, title, message, recipients, data, priority = 'medium' } = req.body;
   
   if (!type || !title || !message || !recipients) {
@@ -414,7 +414,7 @@ router.post('/test', protect, asyncHandler(async (req, res) => {
 // @desc    Get notification templates
 // @route   GET /api/notifications/templates
 // @access  Private (L3 approvers only)
-router.get('/templates', protect, authorize('l3_approver'), asyncHandler(async (req, res) => {
+router.get('/templates', protect, authorize('l3_approver', 'l4_approver'), asyncHandler(async (req, res) => {
   const templates = [
     {
       id: 'expense_approved',

@@ -6,7 +6,7 @@ const User = require('../models/User');
 const Site = require('../models/Site');
 
 // Create new user (Admin only)
-router.post('/create', protect, authorize('l3_approver'), async (req, res) => {
+router.post('/create', protect, authorize('l3_approver', 'l4_approver'), async (req, res) => {
   // Debug logs
   console.log('🔍 DEBUG: User creation endpoint hit!');
   console.log('DEBUG: Current user role:', req.user.role);
@@ -67,9 +67,9 @@ router.post('/create', protect, authorize('l3_approver'), async (req, res) => {
       });
     }
 
-    // Find site by code if provided (for non-L3 users)
+    // Find site by code if provided (for non-L3 and non-L4 users)
     let siteId = undefined;
-    if (site && role !== 'l3_approver') {
+    if (site && role !== 'l3_approver' && role !== 'l4_approver') {
       const foundSite = await Site.findOne({ code: site });
       if (!foundSite) {
         return res.status(400).json({
@@ -168,7 +168,7 @@ router.post('/create', protect, authorize('l3_approver'), async (req, res) => {
 });
 
 // Get all users (Admin only)
-router.get('/all', protect, authorize('l3_approver'), async (req, res) => {
+router.get('/all', protect, authorize('l3_approver', 'l4_approver'), async (req, res) => {
   try {
     const users = await User.find({ isActive: true })
       .populate('site', 'name code')
@@ -334,7 +334,7 @@ router.put('/:userId/password', protect, async (req, res) => {
 });
 
 // Update user role (Admin only)
-router.put('/:userId/role', protect, authorize('l3_approver'), async (req, res) => {
+router.put('/:userId/role', protect, authorize('l3_approver', 'l4_approver'), async (req, res) => {
   try {
     const { userId } = req.params;
     const { role } = req.body;
@@ -368,7 +368,7 @@ router.put('/:userId/role', protect, authorize('l3_approver'), async (req, res) 
 });
 
 // Deactivate user (Admin only)
-router.put('/:userId/deactivate', protect, authorize('l3_approver'), async (req, res) => {
+router.put('/:userId/deactivate', protect, authorize('l3_approver', 'l4_approver'), async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -400,7 +400,7 @@ router.put('/:userId/deactivate', protect, authorize('l3_approver'), async (req,
 });
 
 // Get users by role
-router.get('/role/:role', protect, authorize('l3_approver'), async (req, res) => {
+router.get('/role/:role', protect, authorize('l3_approver', 'l4_approver'), async (req, res) => {
   try {
     const { role } = req.params;
 

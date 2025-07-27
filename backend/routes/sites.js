@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const { protect, authorize } = require('../middleware/auth');
 const Site = require('../models/Site');
 
 // Create new site with budget configuration
-router.post('/create', async (req, res) => {
+router.post('/create', protect, authorize('l3_approver', 'l4_approver'), async (req, res) => {
   try {
     const {
       name,

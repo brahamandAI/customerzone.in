@@ -10,145 +10,209 @@ const router = express.Router();
 // @desc    Get dashboard overview for current user
 // @route   GET /api/dashboard/overview
 // @access  Private
-router.get('/overview', protect, asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-  const userRole = req.user.role;
-  const userSite = req.user.site._id;
+router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'), asyncHandler(async (req, res) => {
+  try {
+    console.log('Dashboard overview request for user:', req.user._id, 'Role:', req.user.role);
+    
+    const userId = req.user._id;
+    const userRole = req.user.role.toLowerCase();
+    const userSite = req.user.site?._id; // Use optional chaining
 
-  let dashboardData = {};
+    let dashboardData = {};
 
-  // Common data for all users
-  const currentMonth = new Date();
-  currentMonth.setDate(1);
-  const nextMonth = new Date(currentMonth);
-  nextMonth.setMonth(nextMonth.getMonth() + 1);
+    // Common data for all users
+    const currentMonth = new Date();
+    currentMonth.setDate(1);
+    const nextMonth = new Date(currentMonth);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
 
-  // Get all user's expenses (all-time)
-  const userExpenses = await Expense.find({
-    submittedBy: userId,
-    isActive: true,
-    isDeleted: false
-  });
-
-  const userStats = {
-    totalExpenses: userExpenses.length,
-    totalAmount: userExpenses.reduce((sum, exp) => sum + exp.amount, 0),
-    pendingExpenses: userExpenses.filter(exp => 
-      ['submitted', 'under_review', 'approved_l1', 'approved_l2'].includes(exp.status)
-    ).length,
-    approvedExpenses: userExpenses.filter(exp => exp.status === 'approved').length,
-    rejectedExpenses: userExpenses.filter(exp => exp.status === 'rejected').length
-  };
-
-  dashboardData.userStats = userStats;
-
-  // Add system-wide pending approvals count (all expenses not yet finally approved/rejected)
-  const pendingApprovalsCount = await Expense.countDocuments({
-    status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2'] },
-    isActive: true,
-    isDeleted: false
-  });
-  dashboardData.pendingApprovalsCount = pendingApprovalsCount;
-
-  // Role-specific data
-  if (userRole === 'submitter') {
-    // Recent expenses
-    const recentExpenses = await Expense.find({
+    // Get all user's expenses (all-time)
+    const userExpenses = await Expense.find({
       submittedBy: userId,
       isActive: true,
       isDeleted: false
-    })
-    .populate('site', 'name code')
-    .sort({ createdAt: -1 })
-    .limit(5);
+    });
 
-    // Site budget info
-    const siteInfo = await Site.findById(userSite);
-    
-    dashboardData.recentExpenses = recentExpenses;
-    dashboardData.siteBudget = {
-      monthly: siteInfo.budget.monthly,
-      used: siteInfo.statistics.monthlySpend,
-      remaining: siteInfo.remainingBudget,
-      utilization: siteInfo.budgetUtilization
+    const userStats = {
+      totalExpenses: userExpenses.length,
+      totalAmount: userExpenses.reduce((sum, exp) => sum + exp.amount, 0),
+      pendingExpenses: userExpenses.filter(exp => 
+        ['submitted', 'under_review', 'approved_l1', 'approved_l2'].includes(exp.status)
+      ).length,
+      approvedExpenses: userExpenses.filter(exp => exp.status === 'approved').length,
+      rejectedExpenses: userExpenses.filter(exp => exp.status === 'rejected').length
     };
-    dashboardData.vehicleKmLimit = siteInfo.vehicleKmLimit;
 
-  } else if (['l1_approver', 'l2_approver', 'l3_approver'].includes(userRole)) {
-    // Pending approvals
-    const pendingApprovals = await Expense.getPendingExpensesForApprover(userId);
-    
-    // Approval statistics
-    const approvalStats = await Expense.aggregate([
-      {
-        $match: {
-          'approvalHistory.approver': userId,
-          isActive: true,
-          isDeleted: false
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalApprovals: { $sum: 1 },
-          approvedCount: {
-            $sum: {
-              $cond: [
-                { $in: ['approved', '$approvalHistory.action'] },
-                1,
-                0
-              ]
+    dashboardData.userStats = userStats;
+
+    // Add system-wide pending approvals count (all expenses not yet finally approved/rejected)
+    const pendingApprovalsCount = await Expense.countDocuments({
+      status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2'] },
+      isActive: true,
+      isDeleted: false
+    });
+    dashboardData.pendingApprovalsCount = pendingApprovalsCount;
+
+    // Role-specific data
+    if (userRole === 'submitter') {
+      // Recent expenses
+      const recentExpenses = await Expense.find({
+        submittedBy: userId,
+        isActive: true,
+        isDeleted: false
+      })
+      .populate('site', 'name code')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+      // Site budget info
+      const siteInfo = await Site.findById(userSite);
+      
+      dashboardData.recentExpenses = recentExpenses;
+      dashboardData.siteBudget = {
+        monthly: siteInfo.budget.monthly,
+        used: siteInfo.statistics.monthlySpend,
+        remaining: siteInfo.remainingBudget,
+        utilization: siteInfo.budgetUtilization
+      };
+      dashboardData.vehicleKmLimit = siteInfo.vehicleKmLimit;
+
+    } else if (['l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'].includes(userRole)) {
+      console.log('Processing dashboard for approver role:', userRole);
+      // For L4 Approver, don't show approval-related data
+      if (userRole === 'l4_approver') {
+        console.log('Setting up dashboard for L4 Approver');
+        dashboardData.pendingApprovals = [];
+        dashboardData.approvalStats = {
+          totalApprovals: 0,
+          approvedCount: 0,
+          rejectedCount: 0,
+          totalAmount: 0
+        };
+        dashboardData.monthlyStats = {
+          monthlyApprovedAmount: 0,
+          monthlyApprovedCount: 0
+        };
+      } else {
+        // Pending approvals for other approvers
+        const pendingApprovals = await Expense.getPendingExpensesForApprover(userId);
+        
+        // Approval statistics
+        const approvalStats = await Expense.aggregate([
+          {
+            $match: {
+              'approvalHistory.approver': userId,
+              isActive: true,
+              isDeleted: false
             }
           },
-          rejectedCount: {
-            $sum: {
-              $cond: [
-                { $in: ['rejected', '$approvalHistory.action'] },
-                1,
-                0
-              ]
+          {
+            $group: {
+              _id: null,
+              totalApprovals: { $sum: 1 },
+              approvedCount: {
+                $sum: {
+                  $cond: [
+                    { $in: ['approved', '$approvalHistory.action'] },
+                    1,
+                    0
+                  ]
+                }
+              },
+              rejectedCount: {
+                $sum: {
+                  $cond: [
+                    { $in: ['rejected', '$approvalHistory.action'] },
+                    1,
+                    0
+                  ]
+                }
+              },
+              totalAmount: {
+                $sum: {
+                  $cond: [
+                    { $in: ['approved', '$approvalHistory.action'] },
+                    '$amount',
+                    0
+                  ]
+                }
+              }
             }
           }
-        }
+        ]);
+
+        dashboardData.pendingApprovals = pendingApprovals;
+        dashboardData.approvalStats = approvalStats[0] || {
+          totalApprovals: 0,
+          approvedCount: 0,
+          rejectedCount: 0,
+          totalAmount: 0
+        };
+
+        // Get current month's approved amount
+        const currentMonth = new Date();
+        currentMonth.setDate(1);
+        const nextMonth = new Date(currentMonth);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+        const monthlyStats = await Expense.aggregate([
+          {
+            $match: {
+              'approvalHistory.approver': userId,
+              'approvalHistory.action': 'approved',
+              'approvalHistory.date': { $gte: currentMonth, $lt: nextMonth },
+              isActive: true,
+              isDeleted: false
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              monthlyApprovedAmount: { $sum: '$amount' },
+              monthlyApprovedCount: { $sum: 1 }
+            }
+          }
+        ]);
+
+        dashboardData.monthlyStats = monthlyStats[0] || {
+          monthlyApprovedAmount: 0,
+          monthlyApprovedCount: 0
+        };
       }
-    ]);
 
-    dashboardData.pendingApprovals = pendingApprovals;
-    dashboardData.approvalStats = approvalStats[0] || {
-      totalApprovals: 0,
-      approvedCount: 0,
-      rejectedCount: 0
-    };
+      // If L3 or L4 approver, get system-wide statistics
+      if (userRole === 'l3_approver' || userRole === 'l4_approver') {
+        const systemStats = await getSystemStatistics();
+        dashboardData.systemStats = systemStats;
 
-    // If L3 approver, get system-wide statistics
-    if (userRole === 'l3_approver') {
-      const systemStats = await getSystemStatistics();
-      dashboardData.systemStats = systemStats;
+        // Budget alerts
+        const budgetAlerts = await Site.getSitesWithBudgetAlerts();
+        dashboardData.budgetAlerts = budgetAlerts;
 
-      // Budget alerts
-      const budgetAlerts = await Site.getSitesWithBudgetAlerts();
-      dashboardData.budgetAlerts = budgetAlerts;
-
-      // Recent activity
-      const recentActivity = await getRecentActivity();
-      dashboardData.recentActivity = recentActivity;
+        // Recent activity
+        const recentActivity = await getRecentActivity();
+        dashboardData.recentActivity = recentActivity;
+      }
     }
+
+    // Get notifications count
+    const notificationsCount = await getNotificationsCount(userId);
+    dashboardData.notificationsCount = notificationsCount;
+
+    res.json({
+      success: true,
+      data: dashboardData
+    });
+  } catch (error) {
+    console.error('Error in dashboard overview route:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-
-  // Get notifications count
-  const notificationsCount = await getNotificationsCount(userId);
-  dashboardData.notificationsCount = notificationsCount;
-
-  res.json({
-    success: true,
-    data: dashboardData
-  });
 }));
 
 // @desc    Get expense statistics
 // @route   GET /api/dashboard/expense-stats
 // @access  Private
-router.get('/expense-stats', protect, asyncHandler(async (req, res) => {
+router.get('/expense-stats', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'), asyncHandler(async (req, res) => {
   const { period = 'month', category, site } = req.query;
   const userId = req.user._id;
   const userRole = req.user.role;
@@ -186,15 +250,15 @@ router.get('/expense-stats', protect, asyncHandler(async (req, res) => {
   // Apply filters based on user role
   if (userRole === 'submitter') {
     matchFilter.submittedBy = userId;
-  } else if (userRole !== 'l3_approver') {
-    matchFilter.site = req.user.site._id;
+  } else if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
+    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
   }
 
   // Apply additional filters
   if (category) {
     matchFilter.category = category;
   }
-  if (site && userRole === 'l3_approver') {
+  if (site && (userRole === 'l3_approver' || userRole === 'l4_approver')) {
     matchFilter.site = site;
   }
 
@@ -256,13 +320,13 @@ router.get('/expense-stats', protect, asyncHandler(async (req, res) => {
 // @desc    Get budget overview
 // @route   GET /api/dashboard/budget-overview
 // @access  Private
-router.get('/budget-overview', protect, checkPermission('canViewReports'), asyncHandler(async (req, res) => {
+router.get('/budget-overview', protect, authorize('l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'), checkPermission('canViewReports'), asyncHandler(async (req, res) => {
   const userRole = req.user.role;
-  const userSite = req.user.site._id;
+  const userSite = req.user.site?._id; // Use optional chaining to avoid error
 
   let sites = [];
 
-  if (userRole === 'l3_approver') {
+  if (userRole === 'l3_approver' || userRole === 'l4_approver') {
     // Get all sites
     sites = await Site.find({ isActive: true });
   } else {
@@ -335,7 +399,7 @@ router.get('/pending-approvals', protect, authorize('l1_approver', 'l2_approver'
     isActive: true,
     isDeleted: false
   })
-  .populate('submittedBy', 'name email employeeId')
+  .populate('submittedBy', 'name email')
   .populate('site', 'name code')
   .sort({ submissionDate: 1 });
 
@@ -374,7 +438,7 @@ router.get('/pending-approvals', protect, authorize('l1_approver', 'l2_approver'
 // @desc    Get recent activity
 // @route   GET /api/dashboard/recent-activity
 // @access  Private
-router.get('/recent-activity', protect, asyncHandler(async (req, res) => {
+router.get('/recent-activity', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'), asyncHandler(async (req, res) => {
   const { limit = 20 } = req.query;
   const userId = req.user._id;
   const userRole = req.user.role;
@@ -387,8 +451,8 @@ router.get('/recent-activity', protect, asyncHandler(async (req, res) => {
   // Filter based on user role
   if (userRole === 'submitter') {
     matchFilter.submittedBy = userId;
-  } else if (userRole !== 'l3_approver') {
-    matchFilter.site = req.user.site._id;
+  } else if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
+    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
   }
 
   const recentExpenses = await Expense.find(matchFilter)
@@ -449,7 +513,7 @@ router.get('/recent-activity', protect, asyncHandler(async (req, res) => {
 // @desc    Get expense analytics
 // @route   GET /api/dashboard/analytics
 // @access  Private (L2, L3 approvers only)
-router.get('/analytics', protect, authorize('l2_approver', 'l3_approver'), asyncHandler(async (req, res) => {
+router.get('/analytics', protect, authorize('l2_approver', 'l3_approver', 'l4_approver'), asyncHandler(async (req, res) => {
   const { startDate, endDate, site } = req.query;
   const userRole = req.user.role;
 
@@ -474,8 +538,8 @@ router.get('/analytics', protect, authorize('l2_approver', 'l3_approver'), async
   };
 
   // Apply site filter
-  if (userRole !== 'l3_approver') {
-    matchFilter.site = req.user.site._id;
+  if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
+    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
   } else if (site) {
     matchFilter.site = site;
   }
