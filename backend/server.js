@@ -204,6 +204,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
 const notificationRoutes = require('./routes/notifications');
 const categoryRoutes = require('./routes/categories');
+const paymentRoutes = require('./routes/payments');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -214,6 +215,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -244,7 +246,8 @@ app.get('/', (req, res) => {
       dashboard: '/api/dashboard',
       reports: '/api/reports',
       notifications: '/api/notifications',
-      categories: '/api/categories'
+      categories: '/api/categories',
+      payments: '/api/payments'
     },
     features: [
       'Real-time updates via Socket.io',
@@ -274,6 +277,31 @@ server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   logger.info(`Socket.IO server ready for connections`);
 });
+
+// Monthly reset cron job - Reset site statistics on 1st of every month at 00:01
+nodeCron.schedule('1 0 1 * *', async () => {
+  try {
+    logger.info('🔄 Starting monthly site statistics reset...');
+    
+    const Site = require('./models/Site');
+    const sites = await Site.find({ isActive: true });
+    
+    let resetCount = 0;
+    for (const site of sites) {
+      await site.resetMonthlyStats();
+      resetCount++;
+      logger.info(`✅ Reset monthly stats for site: ${site.name}`);
+    }
+    
+    logger.info(`✅ Monthly reset completed for ${resetCount} sites`);
+  } catch (error) {
+    logger.error('❌ Error during monthly reset:', error);
+  }
+}, {
+  timezone: 'Asia/Kolkata'
+});
+
+logger.info('📅 Monthly reset cron job scheduled for 1st of every month at 00:01 IST');
 
 // Graceful shutdown
 const gracefulShutdown = (signal) => {

@@ -66,6 +66,12 @@ const expenseSchema = new mongoose.Schema({
     default: Date.now
   },
   
+  // Reservation expiry for temporary expense number reservations
+  reservationExpiry: {
+    type: Date,
+    default: null
+  },
+  
   // User and Site Information
   submittedBy: {
     type: mongoose.Schema.ObjectId,
@@ -197,7 +203,9 @@ const expenseSchema = new mongoose.Schema({
       'rejected',
       'cancelled',
       'reimbursed',
-      'payment_processed'
+      'payment_processed',
+      'refunded',
+      'reserved'
     ],
     default: 'draft'
   },
@@ -225,6 +233,27 @@ const expenseSchema = new mongoose.Schema({
   paymentProcessedBy: {
     type: mongoose.Schema.ObjectId,
     ref: 'User'
+  },
+  paymentDetails: {
+    razorpayOrderId: String,
+    razorpayPaymentId: String,
+    paymentMethod: String,
+    bank: String,
+    cardId: String,
+    wallet: String,
+    vpa: String,
+    email: String,
+    contact: String
+  },
+  refundDetails: {
+    refundId: String,
+    refundAmount: Number,
+    refundReason: String,
+    refundDate: Date,
+    refundedBy: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'User'
+    }
   },
   
   // Approval History

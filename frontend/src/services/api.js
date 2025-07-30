@@ -42,6 +42,7 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   register: (userData) => api.post('/auth/register', userData),
+  googleSignIn: (data) => api.post('/auth/google', data),
   logout: () => api.post('/auth/logout'),
   getProfile: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
@@ -59,6 +60,7 @@ export const expenseAPI = {
       },
     });
   },
+  getNextExpenseNumber: () => api.get('/expenses/next-number'),
   getPendingApprovals: () => api.get('/expenses/pending'),
   approveExpense: (id, data) => api.put(`/expenses/${id}/approve`, data),
   rejectExpense: (id, data) => api.put(`/expenses/${id}/approve`, data),
@@ -96,6 +98,14 @@ export const siteAPI = {
   delete: (id) => api.delete(`/sites/${id}`),
   updateBudget: (id, data) => api.put(`/sites/${id}/budget`, data),
   getBudgetAlerts: () => api.get('/sites/budget-alerts'),
+};
+
+// Payment API calls
+export const paymentAPI = {
+  createOrder: (data) => api.post('/payments/create-order', data),
+  verifyPayment: (data) => api.post('/payments/verify', data),
+  getHistory: (params) => api.get('/payments/history', { params }),
+  refundPayment: (data) => api.post('/payments/refund', data),
 };
 
 // Notification API calls

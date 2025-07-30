@@ -22,8 +22,17 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Please add a password'],
+    required: function() {
+      // Password is not required for Google OAuth users
+      return !this.googleId;
+    },
     minlength: [6, 'Password must be at least 6 characters'],
+    select: false
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true,
     select: false
   },
   role: {
@@ -36,13 +45,20 @@ const userSchema = new mongoose.Schema({
   },
   employeeId: {
     type: String,
-    required: [true, 'Please add an employee ID'],
+    required: function() {
+      // Employee ID is not required for Google OAuth users
+      return !this.googleId;
+    },
     unique: true,
+    sparse: true,
     trim: true
   },
   department: {
     type: String,
-    required: [true, 'Please add a department'],
+    required: function() {
+      // Department is not required for Google OAuth users
+      return !this.googleId;
+    },
     trim: true
   },
   site: {

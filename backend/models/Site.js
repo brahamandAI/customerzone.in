@@ -452,4 +452,7 @@ siteSchema.statics.getSitesByManager = function(managerEmail) {
   });
 };
 
-module.exports = mongoose.model('Site', siteSchema); 
+module.exports = mongoose.model('Site', siteSchema, 'sites', {
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+}); 

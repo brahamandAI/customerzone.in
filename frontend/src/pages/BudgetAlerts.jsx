@@ -9,50 +9,106 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import { siteAPI } from '../services/api';
+import { useSocket } from '../context/SocketContext';
 
 const BudgetAlerts = () => {
   const [alerts, setAlerts] = useState([]);
   const [siteBudgets, setSiteBudgets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { socket } = useSocket();
 
-  useEffect(() => {
-    async function fetchBudgetAlerts() {
-      try {
-        const res = await siteAPI.getBudgetAlerts();
-        if (res.data.success && Array.isArray(res.data.data)) {
-          // Map backend data to alert and siteBudgets format
-          const backendAlerts = res.data.data.map((item, idx) => ({
-            id: item.siteId || idx,
-            site: item.clientName || item.siteName || 'Unknown',
-            category: 'All', // If backend has category, use it
-            threshold: item.budgetAlertThreshold || 0,
-            current: item.utilizationPercentage ? Math.round((item.utilizationPercentage / 100) * (item.totalBudget || 0)) : 0,
-            percentage: item.utilizationPercentage || 0,
-            status: 'active',
-            type: (item.utilizationPercentage >= item.budgetAlertThreshold) ? 'warning' : 'info',
-            budgetLimit: item.totalBudget || 0,
-            remainingBudget: item.remainingBudget || 0
-          }));
-          setAlerts(backendAlerts);
-          // Site budgets summary
-          setSiteBudgets(res.data.data.map(item => ({
-            site: item.clientName || item.siteName || 'Unknown',
-            clientId: item.clientId || '',
-            monthlyBudget: item.totalBudget || 0,
-            categoryBudgets: item.categoryBudgets || {},
-            currentUtilization: item.utilizationPercentage || 0,
-            alertThreshold: item.budgetAlertThreshold || 0
-          })));
-        } else {
-          setAlerts([]);
-          setSiteBudgets([]);
-        }
-      } catch (err) {
+  const fetchBudgetAlerts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await siteAPI.getBudgetAlerts();
+      if (res.data.success && Array.isArray(res.data.data)) {
+        // Map backend data to alert and siteBudgets format
+        const backendAlerts = res.data.data.map((item, idx) => ({
+          id: item.siteId || idx,
+          site: item.clientName || item.siteName || 'Unknown',
+          category: 'All', // If backend has category, use it
+          threshold: item.budgetAlertThreshold || 0,
+          current: item.utilizationPercentage ? Math.round((item.utilizationPercentage / 100) * (item.totalBudget || 0)) : 0,
+          percentage: item.utilizationPercentage || 0,
+          status: 'active',
+          type: (item.utilizationPercentage >= item.budgetAlertThreshold) ? 'warning' : 'info',
+          budgetLimit: item.totalBudget || 0,
+          remainingBudget: item.remainingBudget || 0
+        }));
+        setAlerts(backendAlerts);
+        // Site budgets summary
+        setSiteBudgets(res.data.data.map(item => ({
+          site: item.clientName || item.siteName || 'Unknown',
+          clientId: item.clientId || '',
+          monthlyBudget: item.totalBudget || 0,
+          categoryBudgets: item.categoryBudgets || {},
+          currentUtilization: item.utilizationPercentage || 0,
+          alertThreshold: item.budgetAlertThreshold || 0
+        })));
+      } else {
         setAlerts([]);
         setSiteBudgets([]);
       }
+    } catch (err) {
+      console.error('Error fetching budget alerts:', err);
+      setError('Failed to load budget alerts. Please try again.');
+      setAlerts([]);
+      setSiteBudgets([]);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchBudgetAlerts();
   }, []);
+
+  // Real-time updates via socket
+  useEffect(() => {
+    if (!socket) return;
+
+    // Listen for budget-related updates
+    const handleBudgetUpdate = (data) => {
+      console.log('Budget update received:', data);
+      fetchBudgetAlerts(); // Refresh budget data
+    };
+
+    const handleExpenseUpdate = (data) => {
+      console.log('Expense update received, refreshing budget alerts:', data);
+      fetchBudgetAlerts(); // Refresh budget data when expenses change
+    };
+
+    const handlePaymentProcessed = (data) => {
+      console.log('Payment processed, refreshing budget alerts:', data);
+      fetchBudgetAlerts(); // Refresh budget data when payments are processed
+    };
+
+    const handleExpenseCreated = (data) => {
+      console.log('New expense created, refreshing budget alerts:', data);
+      fetchBudgetAlerts(); // Refresh budget data when new expenses are created
+    };
+
+    // Join budget alerts room
+    socket.emit('join', 'budget-alerts');
+
+    // Listen for various events that might affect budget
+    socket.on('budget-updated', handleBudgetUpdate);
+    socket.on('expense-updated', handleExpenseUpdate);
+    socket.on('expense_payment_processed', handlePaymentProcessed);
+    socket.on('site-budget-changed', handleBudgetUpdate);
+    socket.on('expense-created', handleExpenseCreated);
+
+    return () => {
+      socket.off('budget-updated', handleBudgetUpdate);
+      socket.off('expense-updated', handleExpenseUpdate);
+      socket.off('expense_payment_processed', handlePaymentProcessed);
+      socket.off('site-budget-changed', handleBudgetUpdate);
+      socket.off('expense-created', handleExpenseCreated);
+      socket.emit('leave', 'budget-alerts');
+    };
+  }, [socket]);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editingAlert, setEditingAlert] = useState(null);
@@ -173,8 +229,48 @@ const BudgetAlerts = () => {
             </Button>
           </Box>
 
+          {/* Loading State */}
+          {loading && (
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              minHeight: '200px',
+              background: 'rgba(255,255,255,0.95)',
+              borderRadius: 3,
+              mb: 4
+            }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  Loading Budget Alerts...
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Please wait while we fetch the latest budget information
+                </Typography>
+              </Box>
+            </Box>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 4, borderRadius: 3 }}>
+              <Typography variant="body1" fontWeight={600}>
+                {error}
+              </Typography>
+              <Button 
+                variant="outlined" 
+                size="small" 
+                onClick={fetchBudgetAlerts}
+                sx={{ mt: 1 }}
+              >
+                Retry
+              </Button>
+            </Alert>
+          )}
+
           {/* Summary Cards */}
-          <Grid container spacing={3} sx={{ mb: 4 }}>
+          {!loading && !error && (
+            <Grid container spacing={3} sx={{ mb: 4 }}>
             <Grid item xs={12} md={3}>
               <Zoom in style={{ transitionDelay: '200ms' }}>
                 <Paper elevation={16} sx={{ 
@@ -265,11 +361,13 @@ const BudgetAlerts = () => {
                   </Typography>
                 </Paper>
               </Zoom>
+                          </Grid>
             </Grid>
-          </Grid>
+          )}
 
           {/* Site Budget Overview */}
-          <Zoom in style={{ transitionDelay: '600ms' }}>
+          {!loading && !error && (
+            <Zoom in style={{ transitionDelay: '600ms' }}>
             <Paper elevation={16} sx={{ 
               p: 4, 
               mb: 4,
@@ -353,9 +451,11 @@ const BudgetAlerts = () => {
               </Grid>
             </Paper>
           </Zoom>
+          )}
 
           {/* Alerts Table */}
-          <Paper elevation={16} sx={{ 
+          {!loading && !error && (
+            <Paper elevation={16} sx={{ 
             borderRadius: 3, 
             background: 'rgba(255,255,255,0.95)',
             backdropFilter: 'blur(10px)',
@@ -455,8 +555,9 @@ const BudgetAlerts = () => {
                   ))}
                 </TableBody>
               </Table>
-            </TableContainer>
-          </Paper>
+                          </TableContainer>
+            </Paper>
+          )}
         </Box>
       </Fade>
 

@@ -6,6 +6,7 @@ const asyncHandler = require('express-async-handler');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const googleAuthService = require('../services/googleAuth.service');
 
 const router = express.Router();
 
@@ -482,6 +483,59 @@ router.post('/refresh-token', protect, asyncHandler(async (req, res) => {
     token,
     user
   });
+}));
+
+// @desc    Google OAuth Sign In
+// @route   POST /api/auth/google
+// @access  Public
+router.post('/google', asyncHandler(async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google token is required'
+      });
+    }
+
+    // Verify Google token
+    const googleData = await googleAuthService.verifyGoogleToken(token);
+    
+    // Find or create user
+    const user = await googleAuthService.findOrCreateUser(googleData);
+    
+    // Generate JWT token
+    const jwtToken = googleAuthService.generateToken(user);
+    
+    // Get user data without password
+    const userData = await User.findById(user._id)
+      .select('-password')
+      .populate('site', 'name code location.city');
+
+    // Get Socket.io instance
+    const io = req.app.get('io');
+    
+    // Emit user login event to admins
+    io.to('role-l3_approver').to('role-l4_approver').emit('user-login', {
+      user: userData,
+      timestamp: new Date()
+    });
+
+    res.json({
+      success: true,
+      message: 'Google sign-in successful',
+      token: jwtToken,
+      user: userData
+    });
+
+  } catch (error) {
+    console.error('Google sign-in error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Google sign-in failed'
+    });
+  }
 }));
 
 module.exports = router; 

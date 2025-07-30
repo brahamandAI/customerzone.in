@@ -34,6 +34,30 @@ const ExpenseForm = () => {
   const canvasRef = useRef(null);
   const [sites, setSites] = useState([]);
 
+  // Fetch next expense number from backend
+  useEffect(() => {
+    const fetchNextExpenseNumber = async () => {
+      try {
+        const response = await expenseAPI.getNextExpenseNumber();
+        if (response.data.success) {
+          setFormData(prev => ({
+            ...prev,
+            expenseNumber: response.data.data.expenseNumber
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching next expense number:', error);
+        // Fallback to local generation if API fails
+        setFormData(prev => ({
+          ...prev,
+          expenseNumber: generateExpenseNumber()
+        }));
+      }
+    };
+
+    fetchNextExpenseNumber();
+  }, []);
+
   const handleInputChange = (field) => (event) => {
     setFormData({
       ...formData,
@@ -151,7 +175,7 @@ const ExpenseForm = () => {
 
       // Prepare expense data using current user info
       const expenseData = {
-        expenseNumber: `EXP-${Date.now()}`,
+        expenseNumber: formData.expenseNumber, // Use the sequential number from backend
         title: formData.title,
         description: formData.description || `Vehicle KM expense for ${formData.vehicleKm?.vehicleNumber || 'N/A'}`,
         amount: parseFloat(formData.amount || 0),
@@ -225,8 +249,10 @@ const ExpenseForm = () => {
 
   // Generate expense number
   const generateExpenseNumber = () => {
-    const random = Math.floor(1000 + Math.random() * 9000); // Generates number between 1000-9999
-    return `EXP-${random}`;
+    // Get current timestamp to create a sequential number
+    const timestamp = Date.now();
+    const sequentialNumber = (timestamp % 9999) + 1; // Get a number between 1-9999
+    return `EXP-${sequentialNumber.toString().padStart(4, '0')}`; // Pad with zeros to make it 4 digits
   };
 
   const [formData, setFormData] = useState({
@@ -380,7 +406,7 @@ const ExpenseForm = () => {
                           value={formData.expenseNumber}
                           onChange={handleInputChange('expenseNumber')}
                           placeholder="Enter expense number"
-                          helperText="Enter a unique expense number"
+                          helperText="Auto-generated unique expense number"
                           InputProps={{
                             sx: { borderRadius: 2 }
                           }}

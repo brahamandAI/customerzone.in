@@ -7,6 +7,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import SecurityIcon from '@mui/icons-material/Security';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PersonIcon from '@mui/icons-material/Person';
+import GoogleIcon from '@mui/icons-material/Google';
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -106,6 +107,29 @@ const Login = () => {
       navigate('/dashboard');
     } catch (error) {
       setErrors({ email: 'Invalid credentials' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async (googleToken) => {
+    setLoading(true);
+    
+    try {
+      // Call backend Google OAuth API
+      const response = await authAPI.googleSignIn({
+        token: googleToken
+      });
+
+      // Save token and user in localStorage
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      login(response.data.user, response.data.token);
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      setErrors({ email: 'Google sign-in failed. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -448,6 +472,56 @@ const Login = () => {
                     }}
                   >
                     {loading ? 'Signing in...' : 'Sign In'}
+                  </Button>
+
+                  <Divider sx={{ my: 3 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      OR
+                    </Typography>
+                  </Divider>
+
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    size="large"
+                    disabled={loading}
+                    startIcon={<GoogleIcon />}
+                    onClick={() => {
+                      // Initialize Google Sign-In
+                      if (window.google) {
+                        window.google.accounts.id.initialize({
+                          client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
+                          callback: (response) => {
+                            handleGoogleSignIn(response.credential);
+                          }
+                        });
+                        window.google.accounts.id.prompt();
+                      } else {
+                        setErrors({ email: 'Google Sign-In not available. Please use email/password.' });
+                      }
+                    }}
+                    sx={{
+                      py: 2,
+                      borderRadius: 3,
+                      borderColor: '#4285f4',
+                      color: '#4285f4',
+                      fontSize: '1.1rem',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      '&:hover': { 
+                        borderColor: '#3367d6',
+                        backgroundColor: 'rgba(66, 133, 244, 0.04)',
+                        transform: 'translateY(-2px)'
+                      },
+                      '&:disabled': {
+                        borderColor: 'rgba(66, 133, 244, 0.3)',
+                        color: 'rgba(66, 133, 244, 0.3)',
+                        transform: 'none'
+                      },
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    {loading ? 'Signing in...' : 'Sign in with Google'}
                   </Button>
                 </Box>
               </form>

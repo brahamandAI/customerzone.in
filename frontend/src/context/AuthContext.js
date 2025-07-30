@@ -32,8 +32,8 @@ export const AuthProvider = ({ children }) => {
       if (response.data.success) {
         const userData = response.data.data;
         console.log('Token validated, user data:', userData);
-        setUser(userData);
-        setIsAuthenticated(true);
+      setUser(userData);
+      setIsAuthenticated(true);
         // Update localStorage with fresh user data
         localStorage.setItem('user', JSON.stringify(userData));
       } else {

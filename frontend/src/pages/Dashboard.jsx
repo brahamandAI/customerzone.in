@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, Grid, Card, Fade, Zoom, Chip, Avatar, List, ListItem, ListItemIcon, ListItemText, Divider, LinearProgress } from '@mui/material';
+import { Box, Typography, Paper, Grid, Card, Fade, Zoom, Chip, Avatar, List, ListItem, ListItemIcon, ListItemText, Divider, LinearProgress, Button } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
@@ -30,6 +30,10 @@ const Dashboard = () => {
   const [topCategories, setTopCategories] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  // New state for "See More" functionality
+  const [showMoreActivities, setShowMoreActivities] = useState(false);
+  const [showMoreCategories, setShowMoreCategories] = useState(false);
 
   // Show loading while user is being loaded
   if (isLoading || !user) {
@@ -79,7 +83,7 @@ const Dashboard = () => {
         ? (data.monthlyStats?.monthlyApprovedCount || 0)
         : (data.userStats?.totalExpenses || 0),
       approvedThisMonth: isL4Approver ? 0 : (data.approvalStats?.approvedCount || 0),
-      budgetUtilization: data.budgetUtilization || 0
+      budgetUtilization: data.budgetUtilization || data.siteBudget?.utilization || 0
     };
   };
 
@@ -157,17 +161,22 @@ const Dashboard = () => {
       console.log('User role:', user?.role);
       const res = await dashboardAPI.getOverview(forceRefresh ? { timestamp: Date.now() } : {});
       console.log('Dashboard API response:', res);
-      if (res.data.success) {
+        if (res.data.success) {
         const data = res.data.data;
         console.log('Dashboard data received:', data);
+        console.log('Budget utilization data:', {
+          budgetUtilization: data.budgetUtilization,
+          siteBudget: data.siteBudget,
+          userRole: user?.role
+        });
         
         setStats(calculateStats(data));
         setTopCategories(data.topCategories || []);
         setRecentActivities(data.recentActivities || []);
       } else {
         console.error('Dashboard API returned success: false');
-      }
-    } catch (err) {
+        }
+      } catch (err) {
       console.error('Error fetching dashboard:', err);
       console.error('Error details:', err.response?.data);
       // Set default values to prevent infinite loading
@@ -354,62 +363,62 @@ const Dashboard = () => {
             {/* Hide approval cards for L4 Approver and submitter */}
             {user?.role?.toLowerCase() !== 'l4_approver' && user?.role?.toLowerCase() !== 'submitter' && (
               <>
-                <Grid item xs={12} md={3}>
-                  <Zoom in style={{ transitionDelay: '400ms' }}>
-                    <Paper elevation={16} sx={{ 
-                      p: 3, 
-                      borderRadius: 3, 
-                      background: 'rgba(255,255,255,0.95)',
-                      backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      textAlign: 'center'
-                    }}>
-                      <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
-                        <PendingIcon />
-                      </Avatar>
-                      <Typography variant="h4" fontWeight={700} color="#ff9800">
-                        {Number(stats.pendingApprovals || 0).toLocaleString()}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Pending Approvals
-                      </Typography>
-                      <Chip 
-                        label="Action Required" 
-                        size="small" 
-                        sx={{ mt: 1, bgcolor: 'rgba(255, 152, 0, 0.1)', color: '#ff9800' }}
-                      />
-                    </Paper>
-                  </Zoom>
-                </Grid>
-                
-                <Grid item xs={12} md={3}>
-                  <Zoom in style={{ transitionDelay: '600ms' }}>
-                    <Paper elevation={16} sx={{ 
-                      p: 3, 
-                      borderRadius: 3, 
-                      background: 'rgba(255,255,255,0.95)',
-                      backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      textAlign: 'center'
-                    }}>
-                      <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
-                        <CheckCircleIcon />
-                      </Avatar>
-                      <Typography variant="h4" fontWeight={700} color="#4caf50">
-                        {Number(stats.approvedThisMonth || 0).toLocaleString()}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Approved This Month
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
-                        <TrendingUpIcon sx={{ color: '#4caf50', fontSize: 16, mr: 0.5 }} />
-                        <Typography variant="caption" color="#4caf50">
-                          +8.3% vs last month
-                        </Typography>
-                      </Box>
-                    </Paper>
-                  </Zoom>
-                </Grid>
+            <Grid item xs={12} md={3}>
+              <Zoom in style={{ transitionDelay: '400ms' }}>
+                <Paper elevation={16} sx={{ 
+                  p: 3, 
+                  borderRadius: 3, 
+                  background: 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  textAlign: 'center'
+                }}>
+                  <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
+                    <PendingIcon />
+                  </Avatar>
+                  <Typography variant="h4" fontWeight={700} color="#ff9800">
+                    {Number(stats.pendingApprovals || 0).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Pending Approvals
+                  </Typography>
+                  <Chip 
+                    label="Action Required" 
+                    size="small" 
+                    sx={{ mt: 1, bgcolor: 'rgba(255, 152, 0, 0.1)', color: '#ff9800' }}
+                  />
+                </Paper>
+              </Zoom>
+            </Grid>
+            
+            <Grid item xs={12} md={3}>
+              <Zoom in style={{ transitionDelay: '600ms' }}>
+                <Paper elevation={16} sx={{ 
+                  p: 3, 
+                  borderRadius: 3, 
+                  background: 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  textAlign: 'center'
+                }}>
+                  <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
+                    <CheckCircleIcon />
+                  </Avatar>
+                  <Typography variant="h4" fontWeight={700} color="#4caf50">
+                    {Number(stats.approvedThisMonth || 0).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Approved This Month
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
+                    <TrendingUpIcon sx={{ color: '#4caf50', fontSize: 16, mr: 0.5 }} />
+                    <Typography variant="caption" color="#4caf50">
+                      +8.3% vs last month
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Zoom>
+            </Grid>
               </>
             )}
             
@@ -502,14 +511,30 @@ const Dashboard = () => {
                   background: 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
                   border: '1px solid rgba(255,255,255,0.2)',
-                  height: 'fit-content'
+                  height: 'fit-content',
+                  minHeight: 400
                 }}>
                   <Typography variant="h6" fontWeight={600} color="#667eea" gutterBottom>
                     Recent Activities
                   </Typography>
                   
+                  {/* Summary Section */}
+                  {recentActivities.length > 0 && (
+                    <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(102, 126, 234, 0.05)', borderRadius: 2 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Recent Updates
+                      </Typography>
+                      <Typography variant="h6" fontWeight={600} color="#667eea">
+                        {recentActivities.length} activit{recentActivities.length === 1 ? 'y' : 'ies'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {recentActivities.length > 0 ? `Last ${recentActivities[recentActivities.length - 1].time}` : 'No recent activity'}
+                      </Typography>
+                    </Box>
+                  )}
+                  
                   <List sx={{ p: 0 }}>
-                    {recentActivities.map((activity, index) => (
+                    {recentActivities.slice(0, showMoreActivities ? recentActivities.length : 3).map((activity, index) => (
                       <React.Fragment key={activity.id}>
                         <ListItem sx={{ px: 0, py: 1 }}>
                           <ListItemIcon sx={{ minWidth: 40 }}>
@@ -535,10 +560,26 @@ const Dashboard = () => {
                             }
                           />
                         </ListItem>
-                        {index < recentActivities.length - 1 && <Divider />}
+                        {index < (showMoreActivities ? recentActivities.length : 3) - 1 && <Divider />}
                       </React.Fragment>
                     ))}
                   </List>
+                  
+                  {recentActivities.length > 3 && (
+                    <Box sx={{ mt: 2, textAlign: 'center' }}>
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={() => setShowMoreActivities(!showMoreActivities)}
+                        sx={{ 
+                          color: '#667eea',
+                          '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' }
+                        }}
+                      >
+                        {showMoreActivities ? 'Show Less' : `See More (${recentActivities.length - 3})`}
+                      </Button>
+                    </Box>
+                  )}
                 </Paper>
               </Zoom>
             </Grid>
@@ -552,14 +593,30 @@ const Dashboard = () => {
                   background: 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
                   border: '1px solid rgba(255,255,255,0.2)',
-                  height: 'fit-content'
+                  height: 'fit-content',
+                  minHeight: 400
                 }}>
                   <Typography variant="h6" fontWeight={600} color="#667eea" gutterBottom>
                     Top Expense Categories
                   </Typography>
                   
+                  {/* Summary Section */}
+                  {topCategories.length > 0 && (
+                    <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(102, 126, 234, 0.05)', borderRadius: 2 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Total Spent
+                      </Typography>
+                      <Typography variant="h6" fontWeight={600} color="#667eea">
+                        ₹{topCategories.reduce((sum, cat) => sum + cat.amount, 0).toLocaleString()}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Across {topCategories.length} categor{topCategories.length === 1 ? 'y' : 'ies'}
+                      </Typography>
+                    </Box>
+                  )}
+                  
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {topCategories.map((category, index) => (
+                    {topCategories.slice(0, showMoreCategories ? topCategories.length : 3).map((category, index) => (
                       <Box key={index}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                           <Typography variant="body2" fontWeight={500}>
@@ -569,7 +626,7 @@ const Dashboard = () => {
                             ₹{category.amount.toLocaleString()}
                           </Typography>
                         </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                           <Box sx={{ 
                             flex: 1, 
                             height: 8, 
@@ -588,9 +645,30 @@ const Dashboard = () => {
                             {category.percentage}%
                           </Typography>
                         </Box>
+                        {showMoreCategories && (
+                          <Typography variant="caption" color="text.secondary">
+                            {category.count} expense{category.count !== 1 ? 's' : ''}
+                          </Typography>
+                        )}
                       </Box>
                     ))}
                   </Box>
+                  
+                  {topCategories.length > 3 && (
+                    <Box sx={{ mt: 2, textAlign: 'center' }}>
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={() => setShowMoreCategories(!showMoreCategories)}
+                        sx={{ 
+                          color: '#667eea',
+                          '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' }
+                        }}
+                      >
+                        {showMoreCategories ? 'Show Less' : `See More (${topCategories.length - 3})`}
+                      </Button>
+                    </Box>
+                  )}
                 </Paper>
               </Zoom>
             </Grid>

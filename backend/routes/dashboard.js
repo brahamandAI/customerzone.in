@@ -7,6 +7,19 @@ const Expense = require('../models/Expense');
 
 const router = express.Router();
 
+// Helper function to get time ago
+function getTimeAgo(date) {
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+  if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} months ago`;
+  return `${Math.floor(diffInSeconds / 31536000)} years ago`;
+}
+
 // @desc    Get dashboard overview for current user
 // @route   GET /api/dashboard/overview
 // @access  Private
@@ -14,68 +27,208 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
   try {
     console.log('Dashboard overview request for user:', req.user._id, 'Role:', req.user.role);
     
-    const userId = req.user._id;
+  const userId = req.user._id;
     const userRole = req.user.role.toLowerCase();
     const userSite = req.user.site?._id; // Use optional chaining
+    
+    console.log('User site info:', {
+      userSite: userSite,
+      userSiteObject: req.user.site,
+      hasSite: !!userSite
+    });
 
-    let dashboardData = {};
+  let dashboardData = {};
 
-    // Common data for all users
-    const currentMonth = new Date();
-    currentMonth.setDate(1);
-    const nextMonth = new Date(currentMonth);
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
+  // Common data for all users
+  const currentMonth = new Date();
+  currentMonth.setDate(1);
+  const nextMonth = new Date(currentMonth);
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
 
-    // Get all user's expenses (all-time)
-    const userExpenses = await Expense.find({
+  // Get all user's expenses (all-time)
+  const userExpenses = await Expense.find({
+    submittedBy: userId,
+    isActive: true,
+    isDeleted: false
+  });
+
+  const userStats = {
+    totalExpenses: userExpenses.length,
+    totalAmount: userExpenses.reduce((sum, exp) => sum + exp.amount, 0),
+    pendingExpenses: userExpenses.filter(exp => 
+      ['submitted', 'under_review', 'approved_l1', 'approved_l2'].includes(exp.status)
+    ).length,
+    approvedExpenses: userExpenses.filter(exp => exp.status === 'approved').length,
+    rejectedExpenses: userExpenses.filter(exp => exp.status === 'rejected').length
+  };
+
+  dashboardData.userStats = userStats;
+
+  // Add system-wide pending approvals count (all expenses not yet finally approved/rejected)
+  const pendingApprovalsCount = await Expense.countDocuments({
+    status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2'] },
+    isActive: true,
+    isDeleted: false
+  });
+  dashboardData.pendingApprovalsCount = pendingApprovalsCount;
+
+  // Role-specific data
+  if (userRole === 'submitter') {
+    // Recent expenses
+    const recentExpenses = await Expense.find({
       submittedBy: userId,
       isActive: true,
       isDeleted: false
-    });
+    })
+    .populate('site', 'name code')
+    .sort({ createdAt: -1 })
+    .limit(5);
 
-    const userStats = {
-      totalExpenses: userExpenses.length,
-      totalAmount: userExpenses.reduce((sum, exp) => sum + exp.amount, 0),
-      pendingExpenses: userExpenses.filter(exp => 
-        ['submitted', 'under_review', 'approved_l1', 'approved_l2'].includes(exp.status)
-      ).length,
-      approvedExpenses: userExpenses.filter(exp => exp.status === 'approved').length,
-      rejectedExpenses: userExpenses.filter(exp => exp.status === 'rejected').length
+    // Site budget info
+    const siteInfo = await Site.findById(userSite);
+      console.log('Site info for submitter:', {
+        siteId: userSite,
+        siteInfo: siteInfo ? {
+          budget: siteInfo.budget,
+          statistics: siteInfo.statistics,
+          budgetUtilization: siteInfo.budgetUtilization,
+          remainingBudget: siteInfo.remainingBudget
+        } : 'Site not found'
+      });
+    
+    dashboardData.recentExpenses = recentExpenses;
+    dashboardData.siteBudget = {
+        monthly: siteInfo?.budget?.monthly || 0,
+        used: siteInfo?.statistics?.monthlySpend || 0,
+        remaining: siteInfo?.remainingBudget || 0,
+        utilization: siteInfo?.budgetUtilization || (siteInfo?.budget?.monthly > 0 ? Math.round((siteInfo?.statistics?.monthlySpend / siteInfo?.budget?.monthly) * 100) : 0)
     };
+    dashboardData.vehicleKmLimit = siteInfo?.vehicleKmLimit;
 
-    dashboardData.userStats = userStats;
-
-    // Add system-wide pending approvals count (all expenses not yet finally approved/rejected)
-    const pendingApprovalsCount = await Expense.countDocuments({
-      status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2'] },
+    // Enhanced recent activities for submitter
+    console.log('🔍 Processing recent activities for submitter...');
+    
+    const userRecentExpenses = await Expense.find({
+      submittedBy: userId,
       isActive: true,
       isDeleted: false
-    });
-    dashboardData.pendingApprovalsCount = pendingApprovalsCount;
+    })
+    .populate('site', 'name code')
+    .sort({ updatedAt: -1 })
+    .limit(10);
 
-    // Role-specific data
-    if (userRole === 'submitter') {
-      // Recent expenses
-      const recentExpenses = await Expense.find({
-        submittedBy: userId,
-        isActive: true,
-        isDeleted: false
-      })
-      .populate('site', 'name code')
-      .sort({ createdAt: -1 })
-      .limit(5);
+    console.log(`📝 Found ${userRecentExpenses.length} recent expenses for user`);
 
-      // Site budget info
-      const siteInfo = await Site.findById(userSite);
-      
-      dashboardData.recentExpenses = recentExpenses;
-      dashboardData.siteBudget = {
-        monthly: siteInfo.budget.monthly,
-        used: siteInfo.statistics.monthlySpend,
-        remaining: siteInfo.remainingBudget,
-        utilization: siteInfo.budgetUtilization
+    dashboardData.recentActivities = userRecentExpenses.map(expense => {
+      let title = '';
+      let type = '';
+      let status = '';
+
+      switch (expense.status) {
+        case 'submitted':
+          title = 'Expense submitted';
+          type = 'expense_submitted';
+          status = 'pending';
+          break;
+        case 'approved_l1':
+          title = 'Expense approved by L1';
+          type = 'expense_approved';
+          status = 'approved';
+          break;
+        case 'approved_l2':
+          title = 'Expense approved by L2';
+          type = 'expense_approved';
+          status = 'approved';
+          break;
+        case 'approved':
+          title = 'Expense finally approved';
+          type = 'expense_approved';
+          status = 'approved';
+          break;
+        case 'payment_processed':
+          title = 'Payment processed';
+          type = 'payment_processed';
+          status = 'completed';
+          break;
+        case 'rejected':
+          title = 'Expense rejected';
+          type = 'expense_rejected';
+          status = 'rejected';
+          break;
+        default:
+          title = 'Expense updated';
+          type = 'expense_update';
+          status = 'pending';
+      }
+
+      return {
+        id: expense._id,
+        type: type,
+        title: title,
+        description: `${expense.site?.name || 'Unknown Site'} - ₹${expense.amount.toLocaleString()}`,
+        time: getTimeAgo(expense.updatedAt),
+        status: status
       };
-      dashboardData.vehicleKmLimit = siteInfo.vehicleKmLimit;
+    });
+
+    console.log(`✅ Created ${dashboardData.recentActivities.length} recent activities`);
+
+    // Top expense categories for submitter
+    console.log('🔍 Processing top categories for submitter...');
+    
+    const topCategories = await Expense.aggregate([
+      {
+        $match: {
+          submittedBy: userId,
+          isActive: true,
+          isDeleted: false
+        }
+      },
+      {
+        $group: {
+          _id: '$category',
+          totalAmount: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { totalAmount: -1 }
+      },
+      {
+        $limit: 5
+      }
+    ]);
+
+    console.log(`📊 Found ${topCategories.length} top categories`);
+
+    // Calculate percentages
+    const totalUserExpenses = await Expense.aggregate([
+      {
+        $match: {
+          submittedBy: userId,
+          isActive: true,
+          isDeleted: false
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    const userTotalAmount = totalUserExpenses[0]?.totalAmount || 0;
+    console.log(`💰 Total user amount: ₹${userTotalAmount.toLocaleString()}`);
+
+    dashboardData.topCategories = topCategories.map(category => ({
+      name: category._id,
+      amount: category.totalAmount,
+      count: category.count,
+      percentage: userTotalAmount > 0 ? Math.round((category.totalAmount / userTotalAmount) * 100) : 0
+    }));
+
+    console.log(`✅ Created ${dashboardData.topCategories.length} top categories`);
 
     } else if (['l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'].includes(userRole)) {
       console.log('Processing dashboard for approver role:', userRole);
@@ -95,38 +248,38 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
         };
       } else {
         // Pending approvals for other approvers
-        const pendingApprovals = await Expense.getPendingExpensesForApprover(userId);
-        
-        // Approval statistics
-        const approvalStats = await Expense.aggregate([
-          {
-            $match: {
-              'approvalHistory.approver': userId,
-              isActive: true,
-              isDeleted: false
+    const pendingApprovals = await Expense.getPendingExpensesForApprover(userId);
+    
+    // Approval statistics
+    const approvalStats = await Expense.aggregate([
+      {
+        $match: {
+          'approvalHistory.approver': userId,
+          isActive: true,
+          isDeleted: false
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalApprovals: { $sum: 1 },
+          approvedCount: {
+            $sum: {
+              $cond: [
+                { $in: ['approved', '$approvalHistory.action'] },
+                1,
+                0
+              ]
             }
           },
-          {
-            $group: {
-              _id: null,
-              totalApprovals: { $sum: 1 },
-              approvedCount: {
-                $sum: {
-                  $cond: [
-                    { $in: ['approved', '$approvalHistory.action'] },
-                    1,
-                    0
-                  ]
-                }
-              },
-              rejectedCount: {
-                $sum: {
-                  $cond: [
-                    { $in: ['rejected', '$approvalHistory.action'] },
-                    1,
-                    0
-                  ]
-                }
+          rejectedCount: {
+            $sum: {
+              $cond: [
+                { $in: ['rejected', '$approvalHistory.action'] },
+                1,
+                0
+              ]
+            }
               },
               totalAmount: {
                 $sum: {
@@ -136,18 +289,18 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
                     0
                   ]
                 }
-              }
-            }
           }
-        ]);
+        }
+      }
+    ]);
 
-        dashboardData.pendingApprovals = pendingApprovals;
-        dashboardData.approvalStats = approvalStats[0] || {
-          totalApprovals: 0,
-          approvedCount: 0,
+    dashboardData.pendingApprovals = pendingApprovals;
+    dashboardData.approvalStats = approvalStats[0] || {
+      totalApprovals: 0,
+      approvedCount: 0,
           rejectedCount: 0,
           totalAmount: 0
-        };
+    };
 
         // Get current month's approved amount
         const currentMonth = new Date();
@@ -182,27 +335,92 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
 
       // If L3 or L4 approver, get system-wide statistics
       if (userRole === 'l3_approver' || userRole === 'l4_approver') {
-        const systemStats = await getSystemStatistics();
-        dashboardData.systemStats = systemStats;
+      const systemStats = await getSystemStatistics();
+      dashboardData.systemStats = systemStats;
 
-        // Budget alerts
-        const budgetAlerts = await Site.getSitesWithBudgetAlerts();
-        dashboardData.budgetAlerts = budgetAlerts;
+      // Budget alerts
+      const budgetAlerts = await Site.getSitesWithBudgetAlerts();
+      dashboardData.budgetAlerts = budgetAlerts;
 
-        // Recent activity
-        const recentActivity = await getRecentActivity();
-        dashboardData.recentActivity = recentActivity;
+      // Recent activity
+      const recentActivity = await getRecentActivity();
+      dashboardData.recentActivity = recentActivity;
+
+      // For approvers, use the general recent activity
+      dashboardData.recentActivities = recentActivity.map(activity => ({
+        id: activity.expense.id,
+        type: activity.type,
+        title: `${activity.expense.title} ${activity.expense.status}`,
+        description: `${activity.site?.name || 'Unknown Site'} - ₹${activity.expense.amount.toLocaleString()}`,
+        time: getTimeAgo(activity.timestamp),
+        status: activity.expense.status
+      }));
+
+      // Top categories for approvers (system-wide or site-specific)
+      let matchFilter = { isActive: true, isDeleted: false };
+      
+      if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
+        matchFilter.site = req.user.site?._id;
       }
+
+      const topCategories = await Expense.aggregate([
+        { $match: matchFilter },
+        {
+          $group: {
+            _id: '$category',
+            totalAmount: { $sum: '$amount' },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $sort: { totalAmount: -1 }
+        },
+        {
+          $limit: 5
+        }
+      ]);
+
+      // Calculate percentages
+      const totalExpenses = await Expense.aggregate([
+        { $match: matchFilter },
+        {
+          $group: {
+            _id: null,
+            totalAmount: { $sum: '$amount' }
+          }
+        }
+      ]);
+
+      const totalAmount = totalExpenses[0]?.totalAmount || 0;
+
+      dashboardData.topCategories = topCategories.map(category => ({
+        name: category._id,
+        amount: category.totalAmount,
+        count: category.count,
+        percentage: totalAmount > 0 ? Math.round((category.totalAmount / totalAmount) * 100) : 0
+      }));
     }
+  }
 
-    // Get notifications count
-    const notificationsCount = await getNotificationsCount(userId);
-    dashboardData.notificationsCount = notificationsCount;
+  // Get notifications count
+  const notificationsCount = await getNotificationsCount(userId);
+  dashboardData.notificationsCount = notificationsCount;
 
-    res.json({
-      success: true,
-      data: dashboardData
-    });
+  // Debug: Log the complete response
+  console.log('📊 Complete Dashboard Response:', {
+    userRole: userRole,
+    hasRecentActivities: !!dashboardData.recentActivities,
+    hasTopCategories: !!dashboardData.topCategories,
+    recentActivitiesCount: dashboardData.recentActivities?.length || 0,
+    topCategoriesCount: dashboardData.topCategories?.length || 0,
+    userStats: dashboardData.userStats,
+    siteBudget: dashboardData.siteBudget
+  });
+
+  res.json({
+    success: true,
+    data: dashboardData
+  });
   } catch (error) {
     console.error('Error in dashboard overview route:', error);
     res.status(500).json({ success: false, message: 'Server error' });

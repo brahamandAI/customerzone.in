@@ -363,37 +363,37 @@ const AdminPanel = () => {
                     {recentUsers && recentUsers.length > 0 ? (
                       recentUsers.map((user, index) => (
                         <React.Fragment key={user._id || user.id || index}>
-                          <ListItem sx={{ px: 0, py: 1 }}>
-                            <ListItemIcon sx={{ minWidth: 40 }}>
-                              <Avatar sx={{ bgcolor: user.status === 'active' ? '#4caf50' : '#f44336', width: 32, height: 32 }}>
-                                <PeopleIcon />
-                              </Avatar>
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={
-                                <Typography variant="body2" fontWeight={500}>
+                        <ListItem sx={{ px: 0, py: 1 }}>
+                          <ListItemIcon sx={{ minWidth: 40 }}>
+                            <Avatar sx={{ bgcolor: user.status === 'active' ? '#4caf50' : '#f44336', width: 32, height: 32 }}>
+                              <PeopleIcon />
+                            </Avatar>
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={
+                              <Typography variant="body2" fontWeight={500}>
                                   {user.name || user.fullName || 'Unknown User'}
-                                </Typography>
-                              }
-                              secondary={
-                                <Box>
-                                  <Typography variant="caption" color="text.secondary">
+                              </Typography>
+                            }
+                            secondary={
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">
                                     {user.role} • {user.site?.name || user.site || 'No Site'}
-                                  </Typography>
-                                  <Typography variant="caption" display="block" color="text.secondary">
+                                </Typography>
+                                <Typography variant="caption" display="block" color="text.secondary">
                                     Last login: {user.lastLogin || 'Never'}
-                                  </Typography>
-                                </Box>
-                              }
-                            />
-                            <Chip 
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                          <Chip 
                               label={user.status || 'unknown'} 
-                              size="small"
-                              color={user.status === 'active' ? 'success' : 'error'}
-                            />
-                          </ListItem>
-                          {index < recentUsers.length - 1 && <Divider />}
-                        </React.Fragment>
+                            size="small"
+                            color={user.status === 'active' ? 'success' : 'error'}
+                          />
+                        </ListItem>
+                        {index < recentUsers.length - 1 && <Divider />}
+                      </React.Fragment>
                       ))
                     ) : (
                       <ListItem>

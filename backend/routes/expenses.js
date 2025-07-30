@@ -10,6 +10,140 @@ const ApprovalHistory = require('../models/ApprovalHistory');
 const PendingApprover = require('../models/PendingApprovers');
 const Comment = require('../models/Comments');
 
+// Function to cleanup expired reservations
+const cleanupExpiredReservations = async () => {
+  try {
+    const result = await Expense.deleteMany({
+      status: 'reserved',
+      isActive: false,
+      reservationExpiry: { $lt: new Date() }
+    });
+    
+    if (result.deletedCount > 0) {
+      console.log(`🧹 Cleaned up ${result.deletedCount} expired expense number reservations`);
+    }
+  } catch (error) {
+    console.error('Error cleaning up expired reservations:', error);
+  }
+};
+
+// Cleanup expired reservations every 10 minutes
+setInterval(cleanupExpiredReservations, 10 * 60 * 1000);
+
+// Function to generate sequential expense number
+const generateSequentialExpenseNumber = async () => {
+  try {
+    // Find the highest expense number
+    const highestExpense = await Expense.findOne(
+      { expenseNumber: { $regex: /^EXP-\d{4}$/ } },
+      { expenseNumber: 1 }
+    ).sort({ expenseNumber: -1 });
+
+    let nextNumber = 1;
+    
+    if (highestExpense) {
+      // Extract the number from the highest expense number
+      const currentNumber = parseInt(highestExpense.expenseNumber.replace('EXP-', ''));
+      nextNumber = currentNumber + 1;
+    }
+
+    // Ensure the number is within 1-9999 range
+    if (nextNumber > 9999) {
+      nextNumber = 1; // Reset to 1 if we reach 9999
+    }
+
+    // Format as 4-digit string with leading zeros
+    return `EXP-${nextNumber.toString().padStart(4, '0')}`;
+  } catch (error) {
+    console.error('Error generating sequential expense number:', error);
+    // Fallback to timestamp-based number
+    const timestamp = Date.now();
+    const fallbackNumber = (timestamp % 9999) + 1;
+    return `EXP-${fallbackNumber.toString().padStart(4, '0')}`;
+  }
+};
+
+// Function to reserve an expense number (prevent duplicates)
+const reserveExpenseNumber = async (expenseNumber, userId) => {
+  try {
+    // Check if number is already reserved or used
+    const existingReservation = await Expense.findOne({ 
+      expenseNumber: expenseNumber 
+    });
+
+    if (existingReservation) {
+      return false; // Number already taken
+    }
+
+    // Create a temporary reservation (expires in 30 minutes)
+    const reservation = new Expense({
+      expenseNumber: expenseNumber,
+      title: 'TEMP_RESERVATION',
+      description: 'Temporary reservation',
+      amount: 0,
+      category: 'Miscellaneous',
+      expenseDate: new Date(),
+      submittedBy: userId,
+      site: '000000000000000000000000', // Dummy site ID
+      department: 'TEMP',
+      status: 'reserved',
+      isActive: false, // Mark as inactive so it doesn't show in normal queries
+      reservationExpiry: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes
+    });
+
+    await reservation.save();
+    return true; // Successfully reserved
+  } catch (error) {
+    console.error('Error reserving expense number:', error);
+    return false;
+  }
+};
+
+// Get next sequential expense number
+router.get('/next-number', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver'), async (req, res) => {
+  try {
+    const nextExpenseNumber = await generateSequentialExpenseNumber();
+    
+    // Try to reserve this number for the user
+    const reserved = await reserveExpenseNumber(nextExpenseNumber, req.user._id);
+    
+    if (!reserved) {
+      // If reservation failed, try the next number
+      const nextNumber = parseInt(nextExpenseNumber.replace('EXP-', '')) + 1;
+      const alternativeNumber = `EXP-${nextNumber.toString().padStart(4, '0')}`;
+      const alternativeReserved = await reserveExpenseNumber(alternativeNumber, req.user._id);
+      
+      if (alternativeReserved) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            expenseNumber: alternativeNumber
+          }
+        });
+      } else {
+        return res.status(500).json({
+          success: false,
+          message: 'Unable to reserve expense number'
+        });
+      }
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        expenseNumber: nextExpenseNumber
+      }
+    });
+  } catch (error) {
+    console.error('Error getting next expense number:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate expense number',
+      error: error.message
+    });
+  }
+});
+
 // File upload route
 router.post('/upload', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver'), async (req, res) => {
   try {
@@ -143,10 +277,18 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
         } : undefined,
         attachments: attachments || [],
       status: 'submitted',
+      isActive: true, // Mark as active for real expense
       reimbursement: {
         // If bankDetails is provided in req.body, use it; otherwise, fetch from user profile
         bankDetails: req.body.bankDetails || undefined
       }
+    });
+
+    // Clean up any temporary reservation for this expense number
+    await Expense.deleteOne({ 
+      expenseNumber: expenseNumber, 
+      status: 'reserved',
+      isActive: false 
     });
 
     // If bankDetails not provided, fetch from user profile and set
@@ -194,6 +336,19 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
       .to('role-l2_approver')
       .to('role-l3_approver')
       .emit('new_expense_submitted', notificationData);
+
+    // Emit budget update event for real-time updates
+    const budgetUpdateData = {
+      siteId: populatedExpense.site._id,
+      siteName: populatedExpense.site.name,
+      expenseAmount: newExpense.amount,
+      timestamp: new Date()
+    };
+    
+    // Emit to budget alerts room
+    io.to('budget-alerts').emit('expense-created', budgetUpdateData);
+    
+    console.log('📊 Budget update emitted for new expense:', budgetUpdateData);
 
     res.status(201).json({
       success: true,
@@ -436,6 +591,47 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
     .populate('submittedBy', 'name email')
     .populate('site', 'name code')
     .populate('approvalHistory.approver', 'name email role');
+
+    // Update site statistics when expense is approved (L3 final approval or payment)
+    if ((action === 'approve' && levelNum === 3) || action === 'payment') {
+      try {
+        const Site = require('../models/Site');
+        const site = await Site.findById(updatedExpense.site._id);
+        
+        if (site) {
+          // Update site statistics
+          const expenseAmount = modifiedAmount || updatedExpense.amount;
+          await site.updateStatistics(expenseAmount, true);
+          
+          console.log('✅ Site statistics updated for expense approval:', {
+            siteId: site._id,
+            siteName: site.name,
+            expenseAmount: expenseAmount,
+            newMonthlySpend: site.statistics.monthlySpend,
+            newBudgetUtilization: site.budgetUtilization
+          });
+
+          // Emit budget update event for real-time updates
+          const io = req.app.get('io');
+          const budgetUpdateData = {
+            siteId: site._id,
+            siteName: site.name,
+            budgetUtilization: site.budgetUtilization,
+            monthlySpend: site.statistics.monthlySpend,
+            remainingBudget: site.remainingBudget,
+            timestamp: new Date()
+          };
+          
+          // Emit to budget alerts room
+          io.to('budget-alerts').emit('budget-updated', budgetUpdateData);
+          io.to('budget-alerts').emit('site-budget-changed', budgetUpdateData);
+          
+          console.log('📊 Budget update emitted:', budgetUpdateData);
+        }
+      } catch (error) {
+        console.error('❌ Error updating site statistics:', error);
+      }
+    }
 
     // Get Socket.IO instance
     const io = req.app.get('io');
