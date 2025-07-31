@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Typography, Paper, Grid, Card, Fade, Zoom, Chip, Avatar, List, ListItem, ListItemIcon, ListItemText, Divider, LinearProgress, Button } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -34,6 +34,100 @@ const Dashboard = () => {
   // New state for "See More" functionality
   const [showMoreActivities, setShowMoreActivities] = useState(false);
   const [showMoreCategories, setShowMoreCategories] = useState(false);
+
+  // Fetch dashboard data
+  const fetchDashboard = useCallback(async (forceRefresh = false) => {
+    try {
+      setDashboardLoading(true);
+      console.log('Fetching dashboard data for user:', user);
+      console.log('User role:', user?.role);
+      const res = await dashboardAPI.getOverview(forceRefresh ? { timestamp: Date.now() } : {});
+      console.log('Dashboard API response:', res);
+        if (res.data.success) {
+        const data = res.data.data;
+        console.log('Dashboard data received:', data);
+        console.log('Budget utilization data:', {
+          budgetUtilization: data.budgetUtilization,
+          siteBudget: data.siteBudget,
+          userRole: user?.role
+        });
+        
+        setStats(calculateStats(data));
+        setTopCategories(data.topCategories || []);
+        setRecentActivities(data.recentActivities || []);
+      } else {
+        console.error('Dashboard API returned success: false');
+        }
+      } catch (err) {
+      console.error('Error fetching dashboard:', err);
+      console.error('Error details:', err.response?.data);
+      // Set default values to prevent infinite loading
+      setStats({
+        totalExpenses: 0,
+        monthlyExpenses: 0,
+        pendingApprovals: 0,
+        approvedThisMonth: 0,
+        budgetUtilization: 0,
+        savings: 0
+      });
+      setTopCategories([]);
+      setRecentActivities([]);
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [user]);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  // Socket event handlers
+  useEffect(() => {
+    if (!socket) return;
+
+    console.log('Setting up dashboard socket handlers');
+
+    const handleExpenseUpdate = async (data) => {
+      console.log('Expense update received:', data);
+      
+      // Add the new activity immediately for better UX
+      const newActivity = {
+        id: Date.now(),
+        type: data.status === 'approved' ? 'expense_approved' : 'expense_rejected',
+        title: `Expense ${data.status}`,
+        description: `${data.siteName} - ₹${(data.amount || 0).toLocaleString()}`,
+        time: 'Just now',
+        status: data.status
+      };
+      setRecentActivities(prev => [newActivity, ...prev.slice(0, 9)]);
+
+      // Wait a short moment for backend to process the change
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Force a fresh data fetch
+      await fetchDashboard(true);
+    };
+
+    // Handle all expense-related events
+    socket.on('expense-updated', handleExpenseUpdate);
+    socket.on('expense_approved_final', handleExpenseUpdate);
+    socket.on('new_expense_submitted', handleExpenseUpdate);
+
+    // Handle direct dashboard updates
+    socket.on('dashboard-update', () => {
+      console.log('Direct dashboard update received');
+      fetchDashboard(true);
+    });
+
+    return () => {
+      console.log('Cleaning up dashboard socket handlers');
+      socket.off('expense-updated');
+      socket.off('expense_approved_final');
+      socket.off('new_expense_submitted');
+      socket.off('dashboard-update');
+    };
+  }, [socket, fetchDashboard]);
 
   // Show loading while user is being loaded
   if (isLoading || !user) {
@@ -153,100 +247,6 @@ const Dashboard = () => {
     return actions;
   };
 
-  // Fetch dashboard data
-  const fetchDashboard = async (forceRefresh = false) => {
-    try {
-      setDashboardLoading(true);
-      console.log('Fetching dashboard data for user:', user);
-      console.log('User role:', user?.role);
-      const res = await dashboardAPI.getOverview(forceRefresh ? { timestamp: Date.now() } : {});
-      console.log('Dashboard API response:', res);
-        if (res.data.success) {
-        const data = res.data.data;
-        console.log('Dashboard data received:', data);
-        console.log('Budget utilization data:', {
-          budgetUtilization: data.budgetUtilization,
-          siteBudget: data.siteBudget,
-          userRole: user?.role
-        });
-        
-        setStats(calculateStats(data));
-        setTopCategories(data.topCategories || []);
-        setRecentActivities(data.recentActivities || []);
-      } else {
-        console.error('Dashboard API returned success: false');
-        }
-      } catch (err) {
-      console.error('Error fetching dashboard:', err);
-      console.error('Error details:', err.response?.data);
-      // Set default values to prevent infinite loading
-      setStats({
-        totalExpenses: 0,
-        monthlyExpenses: 0,
-        pendingApprovals: 0,
-        approvedThisMonth: 0,
-        budgetUtilization: 0,
-        savings: 0
-      });
-      setTopCategories([]);
-      setRecentActivities([]);
-    } finally {
-      setDashboardLoading(false);
-    }
-  };
-
-  // Initial data fetch
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
-
-  // Socket event handlers
-  useEffect(() => {
-    if (!socket) return;
-
-    console.log('Setting up dashboard socket handlers');
-
-    const handleExpenseUpdate = async (data) => {
-      console.log('Expense update received:', data);
-      
-      // Add the new activity immediately for better UX
-      const newActivity = {
-        id: Date.now(),
-        type: data.status === 'approved' ? 'expense_approved' : 'expense_rejected',
-        title: `Expense ${data.status}`,
-        description: `${data.siteName} - ₹${(data.amount || 0).toLocaleString()}`,
-        time: 'Just now',
-        status: data.status
-      };
-      setRecentActivities(prev => [newActivity, ...prev.slice(0, 9)]);
-
-      // Wait a short moment for backend to process the change
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Force a fresh data fetch
-      await fetchDashboard(true);
-    };
-
-    // Handle all expense-related events
-    socket.on('expense-updated', handleExpenseUpdate);
-    socket.on('expense_approved_final', handleExpenseUpdate);
-    socket.on('new_expense_submitted', handleExpenseUpdate);
-
-    // Handle direct dashboard updates
-    socket.on('dashboard-update', () => {
-      console.log('Direct dashboard update received');
-      fetchDashboard(true);
-    });
-
-    return () => {
-      console.log('Cleaning up dashboard socket handlers');
-      socket.off('expense-updated');
-      socket.off('expense_approved_final');
-      socket.off('new_expense_submitted');
-      socket.off('dashboard-update');
-    };
-  }, [socket]);
-
   const getActivityIcon = (type) => {
     switch (type) {
       case 'expense_submitted': return <ReceiptIcon />;
@@ -267,7 +267,7 @@ const Dashboard = () => {
     }
   };
 
-  const quickActions = getQuickActions();
+  // Removed unused quickActions variable
 
   return (
     <Box sx={{ 

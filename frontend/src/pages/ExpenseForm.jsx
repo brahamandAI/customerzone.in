@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, Typography, Paper, Grid, TextField, FormControl, InputLabel, Select, MenuItem, Button, Fade, Zoom, Avatar, Card, Dialog, DialogTitle, DialogContent, DialogActions, Alert, CircularProgress, Snackbar } from '@mui/material';
+import { Box, Typography, Paper, Grid, TextField, FormControl, Select, MenuItem, Button, Fade, Zoom, Avatar, Card, Dialog, DialogTitle, DialogContent, DialogActions, Alert, CircularProgress, Snackbar } from '@mui/material';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SaveIcon from '@mui/icons-material/Save';
@@ -8,21 +8,15 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
-import VideocamIcon from '@mui/icons-material/Videocam';
 import { useNavigate } from 'react-router-dom';
-import { expenseAPI, authAPI, siteAPI } from '../services/api';
+import { expenseAPI, siteAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const ExpenseForm = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  // Block L4 Approver from accessing this page
-  if (user && ['l4_approver', 'L4_APPROVER'].includes(user?.role)) {
-    navigate('/dashboard');
-    return null;
-  }
-  
+  // All hooks must be called before any conditional logic
   const [attachments, setAttachments] = useState([]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [stream, setStream] = useState(null);
@@ -33,7 +27,72 @@ const ExpenseForm = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [sites, setSites] = useState([]);
+  
+  // Generate expense number helper function
+  const generateExpenseNumber = () => {
+    const now = new Date();
+    const year = now.getFullYear().toString().slice(-2); // Last 2 digits of year
+    const month = (now.getMonth() + 1).toString().padStart(2, '0'); // Month with leading zero
+    const day = now.getDate().toString().padStart(2, '0'); // Day with leading zero
+    const hours = now.getHours().toString().padStart(2, '0'); // Hours with leading zero
+    const minutes = now.getMinutes().toString().padStart(2, '0'); // Minutes with leading zero
+    
+    // Generate sequential number based on current time
+    const sequentialNumber = parseInt(hours + minutes);
+    return `EXP-${sequentialNumber.toString().padStart(4, '0')}`; // Pad with zeros to make it 4 digits
+  };
+  
+  // formData state - moved here to follow Rules of Hooks
+  const [formData, setFormData] = useState({
+    expenseNumber: generateExpenseNumber(),
+    title: '',
+    description: '',
+    amount: '',
+    currency: 'INR',
+    category: '', // Set to empty string for controlled Select
+    subcategory: '',
+    expenseDate: '',
+    department: '',
+    vehicleKm: {
+      startKm: '',
+      endKm: '',
+      totalKm: '',
+      vehicleNumber: '',
+      purpose: '',
+      route: {
+        from: '',
+        to: '',
+        via: []
+      },
+      ratePerKm: 10
+    },
+    travel: {
+      from: '',
+      to: '',
+      travelDate: '',
+      returnDate: '',
+      mode: '',
+      bookingReference: '',
+      passengerName: ''
+    },
+    accommodation: {
+      hotelName: '',
+      checkIn: '',
+      checkOut: '',
+      location: '',
+      roomType: '',
+      guestName: '',
+      bookingReference: ''
+    },
+    bankDetails: {
+      accountNumber: '',
+      ifscCode: '',
+      bankName: '',
+      accountHolderName: ''
+    }
+  });
 
+  // ALL useEffect hooks must be here before conditional logic
   // Fetch next expense number from backend
   useEffect(() => {
     const fetchNextExpenseNumber = async () => {
@@ -57,6 +116,50 @@ const ExpenseForm = () => {
 
     fetchNextExpenseNumber();
   }, []);
+
+  // Fetch sites
+  useEffect(() => {
+    siteAPI.getAll().then(res => {
+      setSites(res.data.data || []);
+    });
+  }, []);
+
+  // Handle video stream when camera opens
+  useEffect(() => {
+    if (cameraOpen && stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [cameraOpen, stream]);
+
+  // Auto-fill bank details from user profile if available
+  useEffect(() => {
+    if (user && user.bankDetails) {
+      setFormData(prev => ({
+        ...prev,
+        bankDetails: {
+          accountNumber: user.bankDetails.accountNumber || '',
+          ifscCode: user.bankDetails.ifscCode || '',
+          bankName: user.bankDetails.bankName || '',
+          accountHolderName: user.bankDetails.accountHolderName || ''
+        }
+      }));
+    }
+  }, [user]);
+
+  // Cleanup stream when component unmounts
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
+
+  // Block L4 Approver from accessing this page - moved after all hooks
+  if (user && ['l4_approver', 'L4_APPROVER'].includes(user?.role)) {
+    navigate('/dashboard');
+    return null;
+  }
 
   const handleInputChange = (field) => (event) => {
     setFormData({
@@ -229,12 +332,6 @@ const ExpenseForm = () => {
     }
   };
 
-  useEffect(() => {
-    siteAPI.getAll().then(res => {
-      setSites(res.data.data || []);
-    });
-  }, []);
-
   const categories = [
     'Travel',
     'Food',
@@ -247,62 +344,7 @@ const ExpenseForm = () => {
     'Miscellaneous'
   ];
 
-  // Generate expense number
-  const generateExpenseNumber = () => {
-    // Get current timestamp to create a sequential number
-    const timestamp = Date.now();
-    const sequentialNumber = (timestamp % 9999) + 1; // Get a number between 1-9999
-    return `EXP-${sequentialNumber.toString().padStart(4, '0')}`; // Pad with zeros to make it 4 digits
-  };
 
-  const [formData, setFormData] = useState({
-    expenseNumber: generateExpenseNumber(),
-    title: '',
-    description: '',
-    amount: '',
-    currency: 'INR',
-    category: '', // Set to empty string for controlled Select
-    subcategory: '',
-    expenseDate: '',
-    department: '',
-    vehicleKm: {
-      startKm: '',
-      endKm: '',
-      totalKm: '',
-      vehicleNumber: '',
-      purpose: '',
-      route: {
-        from: '',
-        to: '',
-        via: []
-      },
-      ratePerKm: 10
-    },
-    travel: {
-      from: '',
-      to: '',
-      travelDate: '',
-      returnDate: '',
-      mode: '',
-      bookingReference: '',
-      passengerName: ''
-    },
-    accommodation: {
-      hotelName: '',
-      checkIn: '',
-      checkOut: '',
-      location: '',
-      roomType: '',
-      guestName: '',
-      bookingReference: ''
-    },
-    bankDetails: {
-      accountNumber: '',
-      ifscCode: '',
-      bankName: '',
-      accountHolderName: ''
-    }
-  });
 
   const paymentMethods = [
     'Cash',
@@ -311,37 +353,6 @@ const ExpenseForm = () => {
     'Cheque',
     'Digital Payment'
   ];
-
-  // Handle video stream when camera opens
-  useEffect(() => {
-    if (cameraOpen && stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [cameraOpen, stream]);
-
-  // Auto-fill bank details from user profile if available
-  useEffect(() => {
-    if (user && user.bankDetails) {
-      setFormData(prev => ({
-        ...prev,
-        bankDetails: {
-          accountNumber: user.bankDetails.accountNumber || '',
-          ifscCode: user.bankDetails.ifscCode || '',
-          bankName: user.bankDetails.bankName || '',
-          accountHolderName: user.bankDetails.accountHolderName || ''
-        }
-      }));
-    }
-  }, [user]);
-
-  // Cleanup stream when component unmounts
-  useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [stream]);
 
   return (
     <Box sx={{ 

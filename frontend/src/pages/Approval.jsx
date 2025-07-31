@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Typography, Paper, Grid, Fade, Zoom, Button, Chip, Avatar, List, ListItem, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Snackbar, Alert } from '@mui/material';
 import ApprovalIcon from '@mui/icons-material/Approval';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -31,8 +31,51 @@ const Approval = () => {
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedExpenseForPayment, setSelectedExpenseForPayment] = useState(null);
-  const { user, getUserRole, canApproveLevel } = useAuth();
+  const { user, getUserRole } = useAuth();
   const { socket } = useSocket();
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchApprovals();
+  }, [fetchApprovals]);
+
+  // Socket event handlers
+  useEffect(() => {
+    if (!socket) return;
+
+    console.log('Setting up approval socket handlers');
+
+    // Handle new expense submissions
+    socket.on('new_expense_submitted', () => {
+      console.log('New expense submitted, refreshing approvals');
+      fetchApprovals();
+    });
+
+    // Handle expense updates (approvals/rejections)
+    socket.on('expense-updated', (data) => {
+      console.log('Expense updated, refreshing approvals:', data);
+      // Only refresh if it's not a payment processing
+      if (data.status !== 'payment_processed') {
+        fetchApprovals();
+      }
+    });
+
+    // Handle payment processing specifically
+    socket.on('expense_payment_processed', (data) => {
+      console.log('Payment processed, removing expense from list:', data);
+      // Remove the processed expense from the local list without refetching
+      setApprovals(prevApprovals => 
+        prevApprovals.filter(approval => approval.id !== data.expenseId)
+      );
+    });
+        
+    return () => {
+      console.log('Cleaning up approval socket handlers');
+      socket.off('new_expense_submitted');
+      socket.off('expense-updated');
+      socket.off('expense_payment_processed');
+    };
+  }, [socket, fetchApprovals]);
 
   // Block L4 Approver from accessing this page
   if (user && ['l4_approver', 'L4_APPROVER'].includes(user?.role)) {
@@ -51,7 +94,7 @@ const Approval = () => {
   console.log('Is L3 Approver (correct check):', isL3Approver);
 
   // Fetch approvals
-  const fetchApprovals = async () => {
+  const fetchApprovals = useCallback(async () => {
     setLoading(true);
     try {
       console.log('Fetching pending approvals');
@@ -118,50 +161,7 @@ const Approval = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Initial data fetch
-  useEffect(() => {
-    fetchApprovals();
-  }, []);
-
-  // Socket event handlers
-  useEffect(() => {
-    if (!socket) return;
-
-    console.log('Setting up approval socket handlers');
-
-    // Handle new expense submissions
-    socket.on('new_expense_submitted', () => {
-      console.log('New expense submitted, refreshing approvals');
-      fetchApprovals();
-    });
-
-    // Handle expense updates (approvals/rejections)
-    socket.on('expense-updated', (data) => {
-      console.log('Expense updated, refreshing approvals:', data);
-      // Only refresh if it's not a payment processing
-      if (data.status !== 'payment_processed') {
-        fetchApprovals();
-      }
-    });
-
-    // Handle payment processing specifically
-    socket.on('expense_payment_processed', (data) => {
-      console.log('Payment processed, removing expense from list:', data);
-      // Remove the processed expense from the local list without refetching
-      setApprovals(prevApprovals => 
-        prevApprovals.filter(approval => approval.id !== data.expenseId)
-      );
-    });
-        
-    return () => {
-      console.log('Cleaning up approval socket handlers');
-      socket.off('new_expense_submitted');
-      socket.off('expense-updated');
-      socket.off('expense_payment_processed');
-    };
-  }, [socket]);
+  }, [getUserRole]);
 
   const levelMap = { L1: 1, L2: 2, L3: 3 };
 
@@ -295,14 +295,7 @@ const Approval = () => {
     }
   };
 
-  const getNextApprovalLevel = (currentLevel) => {
-    switch (currentLevel) {
-      case 'L1': return 'L2';
-      case 'L2': return 'L3';
-      case 'L3': return 'COMPLETED';
-      default: return 'L1';
-    }
-  };
+  // Removed unused getNextApprovalLevel function
 
   const getApprovalLevelName = (level) => {
     switch (level) {

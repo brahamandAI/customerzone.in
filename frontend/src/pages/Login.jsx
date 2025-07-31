@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, TextField, Button, Fade, Zoom, Avatar, InputAdornment, IconButton, FormControlLabel, Checkbox, FormControl, InputLabel, Select, MenuItem, Chip, Divider } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, Fade, Zoom, Avatar, InputAdornment, IconButton, FormControlLabel, Checkbox, FormControl, InputLabel, Select, MenuItem, Divider } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -7,7 +7,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import SecurityIcon from '@mui/icons-material/Security';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PersonIcon from '@mui/icons-material/Person';
-import GoogleIcon from '@mui/icons-material/Google';
+import { GoogleLogin } from '@react-oauth/google';
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -112,14 +112,17 @@ const Login = () => {
     }
   };
 
-  const handleGoogleSignIn = async (googleToken) => {
+  const handleGoogleSignIn = async (credentialResponse) => {
+    console.log('🔐 Google Sign-In initiated:', credentialResponse);
     setLoading(true);
     
     try {
-      // Call backend Google OAuth API
+      // Call backend Google OAuth API with the credential token
       const response = await authAPI.googleSignIn({
-        token: googleToken
+        token: credentialResponse.credential
       });
+
+      console.log('✅ Google Sign-In successful:', response.data);
 
       // Save token and user in localStorage
       localStorage.setItem('token', response.data.token);
@@ -128,22 +131,16 @@ const Login = () => {
       login(response.data.user, response.data.token);
       navigate('/dashboard');
     } catch (error) {
-      console.error('Google sign-in error:', error);
-      setErrors({ email: 'Google sign-in failed. Please try again.' });
+      console.error('❌ Google sign-in error:', error);
+      setErrors({ email: error.response?.data?.message || 'Google sign-in failed. Please try again.' });
     } finally {
       setLoading(false);
     }
   };
 
-  const getPermissionsByRole = (role) => {
-    const permissions = {
-      submitter: ['submit_expense', 'view_own', 'view_reports'],
-      l1_approver: ['submit_expense', 'approve_l1', 'view_approvals', 'view_reports', 'modify_amount'],
-      l2_approver: ['submit_expense', 'approve_l2', 'view_approvals', 'view_reports', 'admin_access'],
-      l3_approver: ['submit_expense', 'approve_l3', 'view_approvals', 'view_reports', 'initiate_payment', 'admin_access', 'user_management', 'system_settings'],
-      l4_approver: ['view_reports'] // L4 Approver: only reports
-    };
-    return permissions[role] || [];
+  const handleGoogleError = () => {
+    console.error('Google Sign-In Error');
+    setErrors({ email: 'Google sign-in was cancelled or failed. Please try again.' });
   };
 
   const getRoleIcon = (role) => {
@@ -480,49 +477,47 @@ const Login = () => {
                     </Typography>
                   </Divider>
 
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    size="large"
-                    disabled={loading}
-                    startIcon={<GoogleIcon />}
-                    onClick={() => {
-                      // Initialize Google Sign-In
-                      if (window.google) {
-                        window.google.accounts.id.initialize({
-                          client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
-                          callback: (response) => {
-                            handleGoogleSignIn(response.credential);
-                          }
-                        });
-                        window.google.accounts.id.prompt();
-                      } else {
-                        setErrors({ email: 'Google Sign-In not available. Please use email/password.' });
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center',
+                    '& .google-login-button': {
+                      width: '100%',
+                      '& div': {
+                        width: '100% !important',
+                        borderRadius: '12px !important',
+                        height: '56px !important',
+                        display: 'flex !important',
+                        alignItems: 'center !important',
+                        justifyContent: 'center !important',
+                        fontSize: '1.1rem !important',
+                        fontWeight: '600 !important',
+                        fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif !important',
+                        textTransform: 'none !important',
+                        transition: 'all 0.3s ease !important',
+                        '&:hover': {
+                          transform: 'translateY(-2px) !important',
+                          boxShadow: '0 4px 12px rgba(66, 133, 244, 0.3) !important'
+                        }
                       }
-                    }}
-                    sx={{
-                      py: 2,
-                      borderRadius: 3,
-                      borderColor: '#4285f4',
-                      color: '#4285f4',
-                      fontSize: '1.1rem',
-                      fontWeight: 600,
-                      textTransform: 'none',
-                      '&:hover': { 
-                        borderColor: '#3367d6',
-                        backgroundColor: 'rgba(66, 133, 244, 0.04)',
-                        transform: 'translateY(-2px)'
-                      },
-                      '&:disabled': {
-                        borderColor: 'rgba(66, 133, 244, 0.3)',
-                        color: 'rgba(66, 133, 244, 0.3)',
-                        transform: 'none'
-                      },
-                      transition: 'all 0.3s ease'
-                    }}
-                  >
-                    {loading ? 'Signing in...' : 'Sign in with Google'}
-                  </Button>
+                    }
+                  }}>
+                    {/* Debug: Show client ID status */}
+                    {!process.env.REACT_APP_GOOGLE_CLIENT_ID && (
+                      <Typography color="error" variant="body2" sx={{ mb: 2 }}>
+                        ⚠️ Google Client ID not configured. Please check your .env file.
+                      </Typography>
+                    )}
+                    <GoogleLogin
+                      onSuccess={handleGoogleSignIn}
+                      onError={handleGoogleError}
+                      theme="outline"
+                      size="large"
+                      text="signin_with"
+                      shape="rectangular"
+                      className="google-login-button"
+                      disabled={loading}
+                    />
+                  </Box>
                 </Box>
               </form>
 

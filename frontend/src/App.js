@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ExpenseForm from './pages/ExpenseForm';
@@ -157,14 +158,27 @@ function Layout() {
 }
 
 function App() {
+  const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+  
+  // Debug: Log the client ID to console
+  console.log('Google Client ID:', googleClientId);
+  
+  // Check if client ID is available
+  if (!googleClientId) {
+    console.error('❌ REACT_APP_GOOGLE_CLIENT_ID is not set in environment variables!');
+    console.error('Please create frontend/.env file with REACT_APP_GOOGLE_CLIENT_ID');
+  }
+
   return (
-    <AuthProvider>
-      <SocketProvider>
-        <Router>
-          <Layout />
-        </Router>
-      </SocketProvider>
-    </AuthProvider>
+    <GoogleOAuthProvider clientId={googleClientId || ''}>
+      <AuthProvider>
+        <SocketProvider>
+          <Router>
+            <Layout />
+          </Router>
+        </SocketProvider>
+      </AuthProvider>
+    </GoogleOAuthProvider>
   );
 }
 

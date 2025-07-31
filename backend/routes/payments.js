@@ -10,6 +10,14 @@ const User = require('../models/User');
 // @access  Private
 router.post('/create-order', protect, async (req, res) => {
   try {
+    // Check if Razorpay is configured
+    if (!razorpayService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Payment service is not configured. Please contact administrator.'
+      });
+    }
+
     const { expenseId, amount, currency = 'INR' } = req.body;
 
     if (!expenseId || !amount) {
@@ -72,6 +80,14 @@ router.post('/create-order', protect, async (req, res) => {
 // @access  Private
 router.post('/verify', protect, async (req, res) => {
   try {
+    // Check if Razorpay is configured
+    if (!razorpayService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Payment service is not configured. Please contact administrator.'
+      });
+    }
+
     const { orderId, paymentId, signature, expenseId } = req.body;
 
     if (!orderId || !paymentId || !signature || !expenseId) {
@@ -237,6 +253,14 @@ router.get('/history', protect, async (req, res) => {
 // @access  Private (L3 Approver only)
 router.post('/refund', protect, authorize('l3_approver'), async (req, res) => {
   try {
+    // Check if Razorpay is configured
+    if (!razorpayService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Payment service is not configured. Please contact administrator.'
+      });
+    }
+
     const { expenseId, reason = 'Expense refund' } = req.body;
 
     if (!expenseId) {

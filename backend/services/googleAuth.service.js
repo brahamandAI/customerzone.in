@@ -1,5 +1,6 @@
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
+const Site = require('../models/Site');
 const jwt = require('jsonwebtoken');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -27,6 +28,49 @@ const googleAuthService = {
     }
   },
 
+  // Get default site for new users
+  async getDefaultSite() {
+    try {
+      // Find the first active site
+      const defaultSite = await Site.findOne({ isActive: true }).sort({ createdAt: 1 });
+      
+      if (!defaultSite) {
+        console.warn('⚠️  No active sites found. Creating a default site...');
+        
+        // Create a default site if none exists
+        const defaultSiteData = {
+          name: 'Default Site',
+          code: 'DEFAULT-001',
+          description: 'Default site for new users',
+          location: {
+            address: 'Default Address',
+            city: 'Default City',
+            state: 'Default State',
+            pincode: '000000',
+            country: 'India'
+          },
+          budget: {
+            monthly: 100000,
+            yearly: 1200000,
+            alertThreshold: 80
+          },
+          isActive: true,
+          createdBy: null // Will be set to the first admin user later
+        };
+        
+        const newDefaultSite = new Site(defaultSiteData);
+        await newDefaultSite.save();
+        console.log('✅ Created default site for new users');
+        return newDefaultSite;
+      }
+      
+      return defaultSite;
+    } catch (error) {
+      console.error('Error getting default site:', error);
+      throw new Error('Failed to get default site');
+    }
+  },
+
   // Find or create user from Google data
   async findOrCreateUser(googleData) {
     try {
@@ -43,6 +87,9 @@ const googleAuthService = {
           user.profilePicture = googleData.picture;
           await user.save();
         } else {
+          // Get default site for new user
+          const defaultSite = await this.getDefaultSite();
+          
           // Create new user
           user = new User({
             name: googleData.name,
@@ -51,7 +98,10 @@ const googleAuthService = {
             profilePicture: googleData.picture,
             emailVerified: googleData.emailVerified,
             role: 'submitter', // Default role for Google sign-in
+            site: defaultSite._id, // Assign to default site
             isActive: true,
+            // Note: employeeId and department are not required for Google OAuth users
+            // as per the User model validation
             permissions: {
               canCreateExpenses: true,
               canApproveExpenses: false,
@@ -87,4 +137,4 @@ const googleAuthService = {
   }
 };
 
-module.exports = googleAuthService; 
+module.exports = googleAuthService;
