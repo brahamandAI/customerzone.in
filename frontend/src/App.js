@@ -19,6 +19,8 @@ import NavBar from './components/NavBar';
 import TestSubmit from './components/TestSubmit';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { LanguageProvider } from './context/LanguageContext';
 import './App.css';
 import ManageUsers from './pages/ManageUsers';
 import EditUser from './pages/EditUser';
@@ -171,13 +173,17 @@ function App() {
 
   return (
     <GoogleOAuthProvider clientId={googleClientId || ''}>
-      <AuthProvider>
-        <SocketProvider>
-          <Router>
-            <Layout />
-          </Router>
-        </SocketProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <SocketProvider>
+              <Router>
+                <Layout />
+              </Router>
+            </SocketProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
     </GoogleOAuthProvider>
   );
 }

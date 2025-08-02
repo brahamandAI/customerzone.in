@@ -60,15 +60,23 @@ export const SocketProvider = ({ children }) => {
 
     // Connection event handlers
     newSocket.on('connect', () => {
-      console.log('Socket connected:', newSocket.id);
+      console.log('🔌 Socket connected:', newSocket.id);
+      console.log('👤 User ID:', user._id);
+      console.log('👤 User Role:', user.role);
       
       // Join rooms
       const roleRoom = `role-${user.role.toLowerCase()}`;
       const userRoom = `user-${user._id}`;
-      console.log('Joining rooms:', { roleRoom, userRoom });
+      const budgetRoom = 'budget-alerts';
+      console.log('🎧 Joining rooms:', { roleRoom, userRoom, budgetRoom });
       
       newSocket.emit('join-role-room', roleRoom);
       newSocket.emit('join-user-room', userRoom);
+      newSocket.emit('join-room', budgetRoom); // Join budget alerts room
+      
+      console.log('✅ Joined role room:', roleRoom);
+      console.log('✅ Joined user room:', userRoom);
+      console.log('✅ Joined budget alerts room:', budgetRoom);
 
       // Fetch initial data
       fetchNotifications();

@@ -6,8 +6,10 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
 import { userAPI } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 
 const ManageUsers = () => {
+  const { darkMode } = useTheme();
   console.log('Component Rendered');
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
@@ -96,11 +98,22 @@ const ManageUsers = () => {
   };
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
-      <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+    <Box sx={{ 
+      maxWidth: 1200, 
+      mx: 'auto', 
+      p: 3,
+      background: darkMode ? '#1a1a1a' : '#f5f5f5',
+      minHeight: '100vh'
+    }}>
+      <Paper elevation={3} sx={{ 
+        p: 3, 
+        mb: 3,
+        background: darkMode ? '#2a2a2a' : '#ffffff',
+        border: darkMode ? '1px solid #333333' : '1px solid #e0e0e0'
+      }}>
         <Grid container alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
           <Grid item>
-            <Typography variant="h4" color="primary" fontWeight={700} gutterBottom>
+            <Typography variant="h4" color="primary" fontWeight={700} gutterBottom sx={{ color: darkMode ? '#4fc3f7' : 'primary.main' }}>
               Manage Users
             </Typography>
           </Grid>
@@ -116,7 +129,31 @@ const ManageUsers = () => {
           value={search}
           onChange={e => setSearch(e.target.value)}
           fullWidth
-          sx={{ mb: 2 }}
+          sx={{ 
+            mb: 2,
+            '& .MuiOutlinedInput-root': {
+              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+              color: darkMode ? '#e0e0e0' : '#333333',
+              '& fieldset': {
+                borderColor: darkMode ? '#333333' : '#e0e0e0',
+              },
+              '&:hover fieldset': {
+                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+              },
+            },
+            '& .MuiInputLabel-root': {
+              color: darkMode ? '#b0b0b0' : '#666666',
+              '&.Mui-focused': {
+                color: darkMode ? '#4fc3f7' : '#667eea',
+              },
+            },
+            '& .MuiInputBase-input': {
+              color: darkMode ? '#e0e0e0' : '#333333',
+            },
+          }}
         />
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -131,6 +168,43 @@ const ManageUsers = () => {
             pageSize={10}
             rowsPerPageOptions={[10, 20, 50]}
             disableSelectionOnClick
+            sx={{
+              '& .MuiDataGrid-root': {
+                backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                color: darkMode ? '#e0e0e0' : '#333333',
+              },
+              '& .MuiDataGrid-cell': {
+                borderBottom: darkMode ? '1px solid #333333' : '1px solid #e0e0e0',
+                color: darkMode ? '#e0e0e0' : '#333333',
+              },
+              '& .MuiDataGrid-columnHeaders': {
+                backgroundColor: darkMode ? '#333333' : '#f5f5f5',
+                color: darkMode ? '#e0e0e0' : '#333333',
+                borderBottom: darkMode ? '1px solid #333333' : '1px solid #e0e0e0',
+              },
+              '& .MuiDataGrid-columnHeader': {
+                color: darkMode ? '#e0e0e0' : '#333333',
+              },
+              '& .MuiDataGrid-row': {
+                '&:hover': {
+                  backgroundColor: darkMode ? '#333333' : '#f5f5f5',
+                },
+              },
+              '& .MuiDataGrid-footerContainer': {
+                backgroundColor: darkMode ? '#333333' : '#f5f5f5',
+                color: darkMode ? '#e0e0e0' : '#333333',
+                borderTop: darkMode ? '1px solid #333333' : '1px solid #e0e0e0',
+              },
+              '& .MuiTablePagination-root': {
+                color: darkMode ? '#e0e0e0' : '#333333',
+              },
+              '& .MuiTablePagination-select': {
+                color: darkMode ? '#e0e0e0' : '#333333',
+              },
+              '& .MuiTablePagination-selectIcon': {
+                color: darkMode ? '#e0e0e0' : '#333333',
+              },
+            }}
           />
         )}
       </Paper>

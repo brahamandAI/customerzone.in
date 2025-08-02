@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Typography, TextField, Button, Paper, Grid, CircularProgress, Alert } from '@mui/material';
 import { userAPI } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 
 const EditUser = () => {
+  const { darkMode } = useTheme();
   const { userId } = useParams();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -103,9 +105,20 @@ const EditUser = () => {
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ maxWidth: 800, mx: 'auto', p: 3 }}>
-      <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h5" color="primary" fontWeight={700} gutterBottom>
+    <Box component="form" onSubmit={handleSubmit} sx={{ 
+      maxWidth: 800, 
+      mx: 'auto', 
+      p: 3,
+      background: darkMode ? '#1a1a1a' : '#f5f5f5',
+      minHeight: '100vh'
+    }}>
+      <Paper elevation={3} sx={{ 
+        p: 3, 
+        mb: 3,
+        background: darkMode ? '#2a2a2a' : '#ffffff',
+        border: darkMode ? '1px solid #333333' : '1px solid #e0e0e0'
+      }}>
+        <Typography variant="h5" color="primary" fontWeight={700} gutterBottom sx={{ color: darkMode ? '#4fc3f7' : 'primary.main' }}>
           Edit User
         </Typography>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -118,6 +131,30 @@ const EditUser = () => {
               value={formData.fullName}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -128,6 +165,30 @@ const EditUser = () => {
               value={formData.email}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -138,6 +199,30 @@ const EditUser = () => {
               value={formData.phoneNumber}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -148,6 +233,30 @@ const EditUser = () => {
               value={formData.employeeId}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -158,6 +267,30 @@ const EditUser = () => {
               value={formData.department}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -168,6 +301,30 @@ const EditUser = () => {
               value={formData.role}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -178,6 +335,30 @@ const EditUser = () => {
               value={formData.site}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -187,6 +368,30 @@ const EditUser = () => {
               name="streetAddress"
               value={formData.streetAddress}
               onChange={handleChange}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={4}>
@@ -196,6 +401,30 @@ const EditUser = () => {
               name="city"
               value={formData.city}
               onChange={handleChange}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={4}>
@@ -205,6 +434,30 @@ const EditUser = () => {
               name="state"
               value={formData.state}
               onChange={handleChange}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={4}>
@@ -214,11 +467,35 @@ const EditUser = () => {
               name="pinCode"
               value={formData.pinCode}
               onChange={handleChange}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           {/* Bank Details Section */}
           <Grid item xs={12}>
-            <Typography variant="h6" color="primary" gutterBottom>
+            <Typography variant="h6" color="primary" gutterBottom sx={{ color: darkMode ? '#4fc3f7' : 'primary.main' }}>
               Bank Details
             </Typography>
           </Grid>
@@ -230,6 +507,30 @@ const EditUser = () => {
               value={formData.bankAccountNumber}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -240,6 +541,30 @@ const EditUser = () => {
               value={formData.bankIfscCode}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -250,6 +575,30 @@ const EditUser = () => {
               value={formData.bankName}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
@@ -260,6 +609,30 @@ const EditUser = () => {
               value={formData.bankAccountHolderName}
               onChange={handleChange}
               required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                  '& fieldset': {
+                    borderColor: darkMode ? '#333333' : '#e0e0e0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: darkMode ? '#b0b0b0' : '#666666',
+                  '&.Mui-focused': {
+                    color: darkMode ? '#4fc3f7' : '#667eea',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: darkMode ? '#e0e0e0' : '#333333',
+                },
+              }}
             />
           </Grid>
         </Grid>

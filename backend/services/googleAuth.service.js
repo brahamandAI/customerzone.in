@@ -85,10 +85,24 @@ const googleAuthService = {
           // Update existing user with Google ID
           user.googleId = googleData.googleId;
           user.profilePicture = googleData.picture;
+          
+          // If user doesn't have an employeeId, generate one
+          if (!user.employeeId) {
+            const timestamp = Date.now();
+            const randomSuffix = Math.random().toString(36).substring(2, 8);
+            user.employeeId = `GOOGLE_${timestamp}_${randomSuffix}`;
+            user.department = user.department || 'External';
+          }
+          
           await user.save();
         } else {
           // Get default site for new user
           const defaultSite = await this.getDefaultSite();
+          
+          // Generate a unique employeeId for Google OAuth users
+          const timestamp = Date.now();
+          const randomSuffix = Math.random().toString(36).substring(2, 8);
+          const employeeId = `GOOGLE_${timestamp}_${randomSuffix}`;
           
           // Create new user
           user = new User({
@@ -100,8 +114,8 @@ const googleAuthService = {
             role: 'submitter', // Default role for Google sign-in
             site: defaultSite._id, // Assign to default site
             isActive: true,
-            // Note: employeeId and department are not required for Google OAuth users
-            // as per the User model validation
+            employeeId: employeeId, // Generate unique employeeId for Google OAuth users
+            department: 'External', // Default department for Google OAuth users
             permissions: {
               canCreateExpenses: true,
               canApproveExpenses: false,

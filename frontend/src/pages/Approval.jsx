@@ -12,7 +12,8 @@ import PersonIcon from '@mui/icons-material/Person';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { expenseAPI } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
+import { expenseAPI, dashboardAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import PaymentModal from '../components/PaymentModal';
 
@@ -31,67 +32,45 @@ const Approval = () => {
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedExpenseForPayment, setSelectedExpenseForPayment] = useState(null);
+  const [approvalStats, setApprovalStats] = useState({
+    approvedCount: 0,
+    rejectedCount: 0,
+    totalAmount: 0,
+    currentMonthApprovedAmount: 0
+  });
   const { user, getUserRole } = useAuth();
   const { socket } = useSocket();
+  const { darkMode } = useTheme();
 
-  // Initial data fetch
-  useEffect(() => {
-    fetchApprovals();
-  }, [fetchApprovals]);
-
-  // Socket event handlers
-  useEffect(() => {
-    if (!socket) return;
-
-    console.log('Setting up approval socket handlers');
-
-    // Handle new expense submissions
-    socket.on('new_expense_submitted', () => {
-      console.log('New expense submitted, refreshing approvals');
-      fetchApprovals();
-    });
-
-    // Handle expense updates (approvals/rejections)
-    socket.on('expense-updated', (data) => {
-      console.log('Expense updated, refreshing approvals:', data);
-      // Only refresh if it's not a payment processing
-      if (data.status !== 'payment_processed') {
-        fetchApprovals();
-      }
-    });
-
-    // Handle payment processing specifically
-    socket.on('expense_payment_processed', (data) => {
-      console.log('Payment processed, removing expense from list:', data);
-      // Remove the processed expense from the local list without refetching
-      setApprovals(prevApprovals => 
-        prevApprovals.filter(approval => approval.id !== data.expenseId)
-      );
-    });
-        
-    return () => {
-      console.log('Cleaning up approval socket handlers');
-      socket.off('new_expense_submitted');
-      socket.off('expense-updated');
-      socket.off('expense_payment_processed');
-    };
-  }, [socket, fetchApprovals]);
-
-  // Block L4 Approver from accessing this page
-  if (user && ['l4_approver', 'L4_APPROVER'].includes(user?.role)) {
-    navigate('/dashboard');
-    return null;
-  }
-
-  // Debug: Log user role to check if L3 Approver changes should be applied
-  console.log('Current user role:', user?.role);
-  console.log('Is L3 Approver:', user?.role?.toLowerCase() === 'l3_approver');
-  
   // Get user role in correct format
   const userRole = getUserRole(); // This returns UPPERCASE
   const isL3Approver = userRole === 'L3_APPROVER';
   console.log('User role from context:', userRole);
   console.log('Is L3 Approver (correct check):', isL3Approver);
+
+  // Fetch approval statistics from dashboard
+  const fetchApprovalStats = useCallback(async () => {
+    try {
+      console.log('Fetching approval statistics...');
+      const response = await dashboardAPI.getOverview({ timestamp: Date.now() });
+      if (response.data.success) {
+        const data = response.data.data;
+        console.log('Approval stats response:', data);
+        
+        // Extract approval statistics
+        if (data.approvalStats) {
+          setApprovalStats({
+            approvedCount: data.approvalStats.approvedCount || 0,
+            rejectedCount: data.approvalStats.rejectedCount || 0,
+            totalAmount: data.approvalStats.totalAmount || 0,
+            currentMonthApprovedAmount: data.approvalStats.currentMonthApprovedAmount || 0
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching approval stats:', error);
+    }
+  }, []);
 
   // Fetch approvals
   const fetchApprovals = useCallback(async () => {
@@ -149,19 +128,78 @@ const Approval = () => {
         console.log('Transformed approvals:', transformedApprovals);
         setApprovals(transformedApprovals);
       } else {
-        console.error('API returned success: false');
-        setError('Failed to fetch approvals - API error');
+        throw new Error(response.data.message || 'Failed to fetch approvals');
       }
-    } catch (err) {
-      console.error('Error fetching approvals:', err);
-      console.error('Error details:', err.response?.data);
-      setError('Failed to fetch approvals - Network error');
-      // Set empty array to prevent crashes
-      setApprovals([]);
+    } catch (error) {
+      console.error('Error fetching approvals:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   }, [getUserRole]);
+
+  // Fetch both approvals and stats
+  const fetchData = useCallback(async () => {
+    await Promise.all([fetchApprovals(), fetchApprovalStats()]);
+  }, [fetchApprovals, fetchApprovalStats]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Socket event handlers for real-time updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleExpenseUpdate = () => {
+      console.log('🔄 Expense updated via socket, refreshing approval data...');
+      setTimeout(() => {
+        fetchData();
+      }, 1000);
+    };
+
+    const handleExpenseApprovedL1 = () => {
+      console.log('✅ L1 Approval via socket, refreshing data...');
+      setTimeout(() => {
+        fetchData();
+      }, 1000);
+    };
+
+    const handleExpenseApprovedL2 = () => {
+      console.log('✅ L2 Approval via socket, refreshing data...');
+      setTimeout(() => {
+        fetchData();
+      }, 1000);
+    };
+
+    const handleExpenseRejected = () => {
+      console.log('❌ Expense rejected via socket, refreshing data...');
+      setTimeout(() => {
+        fetchData();
+      }, 1000);
+    };
+
+    const handlePaymentProcessed = () => {
+      console.log('💰 Payment processed via socket, refreshing data...');
+      setTimeout(() => {
+        fetchData();
+      }, 1000);
+    };
+
+    socket.on('expense-updated', handleExpenseUpdate);
+    socket.on('expense_approved_l1', handleExpenseApprovedL1);
+    socket.on('expense_approved_l2', handleExpenseApprovedL2);
+    socket.on('expense_rejected', handleExpenseRejected);
+    socket.on('expense_payment_processed', handlePaymentProcessed);
+
+    return () => {
+      socket.off('expense-updated', handleExpenseUpdate);
+      socket.off('expense_approved_l1', handleExpenseApprovedL1);
+      socket.off('expense_approved_l2', handleExpenseApprovedL2);
+      socket.off('expense_rejected', handleExpenseRejected);
+      socket.off('expense_payment_processed', handlePaymentProcessed);
+    };
+  }, [socket, fetchData]);
 
   const levelMap = { L1: 1, L2: 2, L3: 3 };
 
@@ -190,7 +228,7 @@ const Approval = () => {
     setApprovalComment('');
     setModifiedAmount('');
     setAmountChangeReason('');
-    fetchApprovals(); // Re-fetch to update summary cards
+    fetchData(); // Re-fetch both approvals and stats to update summary cards
       } else {
         throw new Error(data.message);
       }
@@ -227,7 +265,7 @@ const Approval = () => {
     setApprovalComment('');
     setModifiedAmount('');
     setAmountChangeReason('');
-    fetchApprovals(); // Re-fetch to update summary cards
+    fetchData(); // Re-fetch both approvals and stats to update summary cards
       } else {
         throw new Error(data.message);
       }
@@ -258,6 +296,9 @@ const Approval = () => {
     setApprovals(approvals.filter(approval => approval.id !== selectedExpenseForPayment.id));
     setPaymentModalOpen(false);
     setSelectedExpenseForPayment(null);
+    
+    // Refresh data to update statistics
+    fetchData();
   };
 
   const handleOpenDialog = (approval) => {
@@ -329,19 +370,24 @@ const Approval = () => {
     return isPending && isApprover;
   }).length;
   
-  const approvedCount = approvals.filter(a => 
-    ['approved', 'approved_l1', 'approved_l2', 'approved_l3'].includes(a.status.toLowerCase())
-  ).length;
-  
-  const rejectedCount = approvals.filter(a => 
-    ['rejected'].includes(a.status.toLowerCase())
-  ).length;
+  // Use real-time approval statistics from dashboard API
+  const { approvedCount, rejectedCount, totalAmount, currentMonthApprovedAmount } = approvalStats;
+
+  // Block L4 Approver from accessing this page
+  if (user && ['l4_approver', 'L4_APPROVER'].includes(user?.role)) {
+    navigate('/dashboard');
+    return null;
+  }
+
+  // Debug: Log user role to check if L3 Approver changes should be applied
+  console.log('Current user role:', user?.role);
+  console.log('Is L3 Approver:', user?.role?.toLowerCase() === 'l3_approver');
 
   // Update the expense list rendering
   return (
     <Box sx={{ 
       minHeight: '100vh', 
-      background: 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
+      background: darkMode ? 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)' : 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
       p: 4,
       position: 'relative',
       overflow: 'hidden'
@@ -380,9 +426,9 @@ const Approval = () => {
                 <Paper elevation={16} sx={{ 
                   p: 3, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.2)' : '1px solid rgba(255,255,255,0.2)',
                   textAlign: 'center'
                 }}>
                   <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
@@ -403,9 +449,9 @@ const Approval = () => {
                 <Paper elevation={16} sx={{ 
                   p: 3, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.2)' : '1px solid rgba(255,255,255,0.2)',
                   textAlign: 'center'
                 }}>
                   <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
@@ -426,9 +472,9 @@ const Approval = () => {
                 <Paper elevation={16} sx={{ 
                   p: 3, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.2)' : '1px solid rgba(255,255,255,0.2)',
                   textAlign: 'center'
                 }}>
                   <Avatar sx={{ bgcolor: '#f44336', mx: 'auto', mb: 2 }}>
@@ -449,19 +495,19 @@ const Approval = () => {
                 <Paper elevation={16} sx={{ 
                   p: 3, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.2)' : '1px solid rgba(255,255,255,0.2)',
                   textAlign: 'center'
                 }}>
                   <Avatar sx={{ bgcolor: '#2196f3', mx: 'auto', mb: 2 }}>
                     <AttachMoneyIcon />
                   </Avatar>
                   <Typography variant="h4" fontWeight={700} color="#2196f3">
-                    ₹{approvals.reduce((sum, a) => sum + a.amount, 0).toLocaleString()}
+                    ₹{totalAmount.toLocaleString()}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Total Amount
+                    Total Approved Amount
                   </Typography>
                 </Paper>
               </Zoom>
@@ -471,14 +517,14 @@ const Approval = () => {
           {/* Approvals List */}
           <Paper elevation={16} sx={{ 
             borderRadius: 3, 
-            background: 'rgba(255,255,255,0.95)',
+            background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
             backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.2)',
+            border: darkMode ? '1px solid rgba(51,51,51,0.2)' : '1px solid rgba(255,255,255,0.2)',
             overflow: 'hidden'
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
               <Typography variant="h6" fontWeight={600} color="#667eea">
-                Approval Requests
+                {isL3Approver ? 'Payment Requests' : 'Approval Requests'}
               </Typography>
             </Box>
             

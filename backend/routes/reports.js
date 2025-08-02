@@ -64,7 +64,7 @@ router.get('/expense-summary', protect, checkPermission('canViewReports'), async
   if (status) matchFilter.status = status;
   if (submitter) matchFilter.submittedBy = submitter;
 
-  // Get summary data
+  // Get current period summary data
   const summary = await Expense.aggregate([
     { $match: matchFilter },
     {
@@ -108,6 +108,107 @@ router.get('/expense-summary', protect, checkPermission('canViewReports'), async
       }
     }
   ]);
+
+  // Calculate previous period for trend comparison
+  let previousDateFilter = {};
+  if (startDate && endDate) {
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    const periodDays = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24));
+    
+    const previousStartDate = new Date(startDateObj);
+    previousStartDate.setDate(previousStartDate.getDate() - periodDays);
+    const previousEndDate = new Date(startDateObj);
+    previousEndDate.setDate(previousEndDate.getDate() - 1);
+    
+    previousDateFilter = {
+      expenseDate: {
+        $gte: previousStartDate,
+        $lte: previousEndDate
+      }
+    };
+  } else {
+    // Default to previous month
+    const now = new Date();
+    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    previousDateFilter = {
+      expenseDate: {
+        $gte: previousMonthStart,
+        $lte: previousMonthEnd
+      }
+    };
+  }
+
+  // Build previous period match filter
+  let previousMatchFilter = {
+    ...previousDateFilter,
+    isActive: true,
+    isDeleted: false
+  };
+
+  // Apply role-based filtering for previous period
+  if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
+    previousMatchFilter.site = req.user.site?._id;
+  } else if (site) {
+    previousMatchFilter.site = site;
+  }
+
+  // Apply additional filters for previous period
+  if (category) previousMatchFilter.category = category;
+  if (status) previousMatchFilter.status = status;
+  if (submitter) previousMatchFilter.submittedBy = submitter;
+
+  // Get previous period summary data
+  const previousSummary = await Expense.aggregate([
+    { $match: previousMatchFilter },
+    {
+      $group: {
+        _id: null,
+        totalExpenses: { $sum: 1 },
+        totalAmount: { $sum: '$amount' },
+        approvedCount: {
+          $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
+        },
+        pendingCount: {
+          $sum: { 
+            $cond: [
+              { $in: ['$status', ['submitted', 'under_review', 'approved_l1', 'approved_l2']] }, 
+              1, 
+              0
+            ]
+          }
+        }
+      }
+    }
+  ]);
+
+  // Calculate trends
+  const currentData = summary[0] || {
+    totalExpenses: 0,
+    totalAmount: 0,
+    approvedCount: 0,
+    pendingCount: 0
+  };
+
+  const previousData = previousSummary[0] || {
+    totalExpenses: 0,
+    totalAmount: 0,
+    approvedCount: 0,
+    pendingCount: 0
+  };
+
+  const calculateTrend = (current, previous) => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Math.round(((current - previous) / previous) * 100);
+  };
+
+  const trends = {
+    totalExpenses: calculateTrend(currentData.totalExpenses, previousData.totalExpenses),
+    totalAmount: calculateTrend(currentData.totalAmount, previousData.totalAmount),
+    approvedCount: calculateTrend(currentData.approvedCount, previousData.approvedCount),
+    pendingCount: calculateTrend(currentData.pendingCount, previousData.pendingCount)
+  };
 
   // Get category breakdown
   const categoryBreakdown = await Expense.aggregate([
@@ -186,6 +287,7 @@ router.get('/expense-summary', protect, checkPermission('canViewReports'), async
       rejectedCount: 0,
       rejectedAmount: 0
     },
+    trends,
     categoryBreakdown,
     monthlyTrends,
     topSubmitters,

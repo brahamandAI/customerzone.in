@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Paper, Grid, Card, Fade, Zoom, Chip, Avatar, List, ListItem, ListItemIcon, ListItemText, Divider, LinearProgress, Button } from '@mui/material';
+import { Box, Typography, Paper, Grid, Card, Fade, Zoom, Chip, Avatar, List, ListItem, ListItemIcon, ListItemText, Divider, LinearProgress, Button, IconButton } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
@@ -10,15 +10,23 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
 import AddIcon from '@mui/icons-material/Add';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import PaymentIcon from '@mui/icons-material/Payment';
+import PeopleIcon from '@mui/icons-material/People';
+import BusinessIcon from '@mui/icons-material/Business';
+
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { dashboardAPI } from '../services/api';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
   const { socket } = useSocket();
+  const { t } = useLanguage();
+  const { darkMode } = useTheme();
   const [stats, setStats] = useState({
     totalExpenses: 0,
     monthlyExpenses: 0,
@@ -35,32 +43,45 @@ const Dashboard = () => {
   const [showMoreActivities, setShowMoreActivities] = useState(false);
   const [showMoreCategories, setShowMoreCategories] = useState(false);
 
+
+
   // Fetch dashboard data
   const fetchDashboard = useCallback(async (forceRefresh = false) => {
     try {
       setDashboardLoading(true);
-      console.log('Fetching dashboard data for user:', user);
-      console.log('User role:', user?.role);
+      console.log('🔄 Fetching dashboard data for user:', user);
+      console.log('👤 User role:', user?.role);
+      console.log('🔄 Force refresh:', forceRefresh);
+      
       const res = await dashboardAPI.getOverview(forceRefresh ? { timestamp: Date.now() } : {});
-      console.log('Dashboard API response:', res);
-        if (res.data.success) {
+      console.log('📡 Dashboard API response:', res);
+      
+      if (res.data.success) {
         const data = res.data.data;
-        console.log('Dashboard data received:', data);
-        console.log('Budget utilization data:', {
+        console.log('📊 Dashboard data received:', data);
+        console.log('📊 Approval stats:', data.approvalStats);
+        console.log('📊 Monthly stats:', data.monthlyStats);
+        console.log('📊 User stats:', data.userStats);
+        console.log('📊 Budget utilization data:', {
           budgetUtilization: data.budgetUtilization,
           siteBudget: data.siteBudget,
           userRole: user?.role
         });
         
-        setStats(calculateStats(data));
+        const calculatedStats = calculateStats(data);
+        console.log('📊 Calculated stats:', calculatedStats);
+        
+        setStats(calculatedStats);
         setTopCategories(data.topCategories || []);
         setRecentActivities(data.recentActivities || []);
+        
+        console.log('✅ Dashboard data updated successfully');
       } else {
-        console.error('Dashboard API returned success: false');
-        }
-      } catch (err) {
-      console.error('Error fetching dashboard:', err);
-      console.error('Error details:', err.response?.data);
+        console.error('❌ Dashboard API returned success: false');
+      }
+    } catch (err) {
+      console.error('❌ Error fetching dashboard:', err);
+      console.error('❌ Error details:', err.response?.data);
       // Set default values to prevent infinite loading
       setStats({
         totalExpenses: 0,
@@ -84,18 +105,38 @@ const Dashboard = () => {
 
   // Socket event handlers
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('❌ No socket connection available');
+      return;
+    }
 
-    console.log('Setting up dashboard socket handlers');
+    console.log('🔌 Setting up dashboard socket handlers');
+    console.log('🔌 Socket connected:', socket.connected);
+    console.log('🔌 Current user:', user);
+    console.log('🔌 Socket ID:', socket.id);
 
     const handleExpenseUpdate = async (data) => {
-      console.log('Expense update received:', data);
+      console.log('📡 Expense update received:', data);
+      console.log('👤 Current user role:', user?.role);
+      console.log('👤 Current user ID:', user?._id);
+      console.log('📊 Current stats before update:', stats);
       
       // Add the new activity immediately for better UX
+      let activityType = 'expense_approved';
+      let activityTitle = `Expense ${data.status}`;
+      
+      if (data.status === 'payment_processed') {
+        activityType = 'payment_processed';
+        activityTitle = 'Payment Processed';
+      } else if (data.status === 'rejected') {
+        activityType = 'expense_rejected';
+        activityTitle = 'Expense Rejected';
+      }
+      
       const newActivity = {
         id: Date.now(),
-        type: data.status === 'approved' ? 'expense_approved' : 'expense_rejected',
-        title: `Expense ${data.status}`,
+        type: activityType,
+        title: activityTitle,
         description: `${data.siteName} - ₹${(data.amount || 0).toLocaleString()}`,
         time: 'Just now',
         status: data.status
@@ -103,31 +144,93 @@ const Dashboard = () => {
       setRecentActivities(prev => [newActivity, ...prev.slice(0, 9)]);
 
       // Wait a short moment for backend to process the change
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('⏳ Waiting for backend processing...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Force a fresh data fetch
+      // Force a fresh data fetch with timestamp to bypass any caching
+      console.log('🔄 Forcing dashboard refresh after expense update');
+      await fetchDashboard(true);
+    };
+
+    const handleDashboardUpdate = async () => {
+      console.log('📡 Direct dashboard update received');
       await fetchDashboard(true);
     };
 
     // Handle all expense-related events
-    socket.on('expense-updated', handleExpenseUpdate);
-    socket.on('expense_approved_final', handleExpenseUpdate);
-    socket.on('new_expense_submitted', handleExpenseUpdate);
+    console.log('🎧 Registering socket event listeners...');
+    socket.on('expense-updated', (data) => {
+      console.log('📡 Received expense-updated event:', data);
+      handleExpenseUpdate(data);
+    });
+    socket.on('expense_approved_final', (data) => {
+      console.log('📡 Received expense_approved_final event:', data);
+      handleExpenseUpdate(data);
+    });
+    socket.on('new_expense_submitted', (data) => {
+      console.log('📡 Received new_expense_submitted event:', data);
+      handleExpenseUpdate(data);
+    });
+    socket.on('expense_approved_l1', (data) => {
+      console.log('📡 Received expense_approved_l1 event:', data);
+      handleExpenseUpdate(data);
+    });
+    socket.on('expense_approved_l2', (data) => {
+      console.log('📡 Received expense_approved_l2 event:', data);
+      handleExpenseUpdate(data);
+    });
+    socket.on('expense_rejected', (data) => {
+      console.log('📡 Received expense_rejected event:', data);
+      handleExpenseUpdate(data);
+    });
+
+    // Handle payment processing by L3 approvers
+    socket.on('expense_payment_processed', (data) => {
+      console.log('📡 Received expense_payment_processed event:', data);
+      handleExpenseUpdate(data);
+    });
+
+    // Handle budget updates when new expenses are created
+    socket.on('expense-created', (data) => {
+      console.log('📡 Received expense-created event for budget update:', data);
+      handleExpenseUpdate(data);
+    });
 
     // Handle direct dashboard updates
-    socket.on('dashboard-update', () => {
-      console.log('Direct dashboard update received');
-      fetchDashboard(true);
+    socket.on('dashboard-update', (data) => {
+      console.log('📡 Received dashboard-update event:', data);
+      handleDashboardUpdate();
+    });
+
+    // Test socket connection
+    socket.on('connect', () => {
+      console.log('✅ Socket connected in Dashboard');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('❌ Socket disconnected in Dashboard');
+    });
+
+    socket.on('error', (error) => {
+      console.error('❌ Socket error in Dashboard:', error);
     });
 
     return () => {
-      console.log('Cleaning up dashboard socket handlers');
+      console.log('🧹 Cleaning up dashboard socket handlers');
       socket.off('expense-updated');
       socket.off('expense_approved_final');
       socket.off('new_expense_submitted');
+      socket.off('expense_approved_l1');
+      socket.off('expense_approved_l2');
+      socket.off('expense_rejected');
+      socket.off('expense_payment_processed');
+      socket.off('expense-created');
       socket.off('dashboard-update');
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('error');
     };
-  }, [socket, fetchDashboard]);
+  }, [socket, fetchDashboard, user, stats]);
 
   // Show loading while user is being loaded
   if (isLoading || !user) {
@@ -161,24 +264,52 @@ const Dashboard = () => {
         totalAmount: 0,
         totalExpenses: 0,
         approvedThisMonth: 0,
-        budgetUtilization: 0
+        budgetUtilization: 0,
+        totalUsers: 0,
+        totalSites: 0,
+        systemExpenses: 0
       };
     }
 
     const isApprover = user.role?.toLowerCase().includes('approver');
     const isL4Approver = user.role?.toLowerCase() === 'l4_approver';
     
-    return {
-      pendingApprovals: isL4Approver ? 0 : (data.pendingApprovalsCount || 0),
-      totalAmount: isApprover 
-        ? (data.monthlyStats?.monthlyApprovedAmount || 0) 
-        : (data.userStats?.totalAmount || 0),
-      totalExpenses: isApprover
-        ? (data.monthlyStats?.monthlyApprovedCount || 0)
-        : (data.userStats?.totalExpenses || 0),
-      approvedThisMonth: isL4Approver ? 0 : (data.approvalStats?.approvedCount || 0),
-      budgetUtilization: data.budgetUtilization || data.siteBudget?.utilization || 0
+    console.log('Calculating stats for user:', {
+      userRole: user.role,
+      isApprover,
+      isL4Approver,
+      data: {
+        pendingApprovalsCount: data.pendingApprovalsCount,
+        monthlyStats: data.monthlyStats,
+        approvalStats: data.approvalStats,
+        userStats: data.userStats,
+        systemStats: data.systemStats
+      }
+    });
+    
+    const stats = {
+      pendingApprovals: data.pendingApprovalsCount || 0,
+      totalAmount: isL4Approver 
+        ? (data.systemStats?.totalExpenses?.amount || 0)
+        : (isApprover 
+          ? (data.monthlyStats?.monthlyApprovedAmount || 0) 
+          : (data.userStats?.totalAmount || 0)),
+      totalExpenses: isL4Approver
+        ? (data.systemStats?.totalExpenses?.count || 0)
+        : (isApprover
+          ? (data.monthlyStats?.monthlyApprovedCount || 0)
+          : (data.userStats?.totalExpenses || 0)),
+      approvedThisMonth: isL4Approver ? (data.approvalStats?.approvedCount || 0) : (data.approvalStats?.approvedCount || 0),
+      budgetUtilization: data.budgetUtilization || data.siteBudget?.utilization || 0,
+      totalUsers: isL4Approver ? (data.systemStats?.totalUsers || 0) : 0,
+      totalSites: isL4Approver ? (data.systemStats?.totalSites || 0) : 0,
+      systemExpenses: isL4Approver ? (data.systemStats?.monthlyExpenses?.amount || 0) : 0,
+      paymentProcessed: isL4Approver ? (data.paymentStats?.totalPayments || 0) : 0
     };
+    
+    console.log('Calculated stats:', stats);
+    
+    return stats;
   };
 
   // Quick actions based on user role
@@ -187,8 +318,8 @@ const Dashboard = () => {
     if (!user) {
       return [
         {
-          title: 'Submit Expense',
-          description: 'Create new expense report',
+                  title: t('submitExpense'),
+        description: t('createNewExpenseReport'),
           icon: <AddIcon />,
           color: '#2196f3',
           action: () => navigate('/submit-expense')
@@ -205,8 +336,8 @@ const Dashboard = () => {
     // Submit Expense for submitter
     if (isSubmitter) {
       actions.push({
-        title: 'Submit Expense',
-        description: 'Create new expense report',
+        title: t('submitExpense'),
+        description: t('createNewExpenseReport'),
         icon: <AddIcon />,
         color: '#2196f3',
         action: () => navigate('/submit-expense')
@@ -237,12 +368,31 @@ const Dashboard = () => {
 
     // Budget Alerts for all users
     actions.push({
-      title: 'Budget Alerts',
-      description: 'Manage budget alerts',
+      title: t('budgetAlerts'),
+      description: t('manageBudgetAlerts'),
       icon: <WarningIcon />,
       color: '#f44336',
       action: () => navigate('/budget-alerts')
     });
+
+    // Super Admin specific actions for L4 Approver
+    if (isL4Approver) {
+      actions.push({
+        title: 'Admin Panel',
+        description: 'System administration',
+        icon: <DashboardIcon />,
+        color: '#9c27b0',
+        action: () => navigate('/admin')
+      });
+      
+      actions.push({
+        title: 'Manage Users',
+        description: 'User management',
+        icon: <PeopleIcon />,
+        color: '#667eea',
+        action: () => navigate('/manage-users')
+      });
+    }
 
     return actions;
   };
@@ -252,6 +402,7 @@ const Dashboard = () => {
       case 'expense_submitted': return <ReceiptIcon />;
       case 'expense_approved': return <CheckCircleIcon />;
       case 'expense_rejected': return <WarningIcon />;
+      case 'payment_processed': return <PaymentIcon />;
       case 'budget_alert': return <NotificationsIcon />;
       default: return <ReceiptIcon />;
     }
@@ -262,6 +413,7 @@ const Dashboard = () => {
       case 'approved': return '#4caf50';
       case 'pending': return '#ff9800';
       case 'rejected': return '#f44336';
+      case 'payment_processed': return '#4caf50';
       case 'warning': return '#ff9800';
       default: return '#2196f3';
     }
@@ -310,35 +462,39 @@ const Dashboard = () => {
               </Avatar>
             </Box>
             <Typography variant="h3" fontWeight={900} color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
-              Dashboard
+              {t('dashboard')}
             </Typography>
-            {dashboardLoading && (
-              <Box sx={{ ml: 2, display: 'flex', alignItems: 'center' }}>
-                <Typography variant="body2" color="white" sx={{ mr: 1 }}>
-                  Loading data...
-                </Typography>
-                <div style={{ 
-                  width: '16px', 
-                  height: '16px', 
-                  border: '2px solid rgba(255,255,255,0.3)', 
-                  borderTop: '2px solid white', 
-                  borderRadius: '50%', 
-                  animation: 'spin 1s linear infinite' 
-                }} />
-              </Box>
-            )}
+            <Box sx={{ ml: 2, display: 'flex', alignItems: 'center' }}>
+              {dashboardLoading && (
+                <>
+                  <Typography variant="body2" color="white" sx={{ mr: 1 }}>
+                    Loading data...
+                  </Typography>
+                  <div style={{ 
+                    width: '16px', 
+                    height: '16px', 
+                    border: '2px solid rgba(255,255,255,0.3)', 
+                    borderTop: '2px solid white', 
+                    borderRadius: '50%', 
+                    animation: 'spin 1s linear infinite' 
+                  }} />
+                </>
+              )}
+
+            </Box>
           </Box>
 
           {/* Key Metrics */}
           <Grid container spacing={3} sx={{ mb: 4 }}>
+            {/* Total Amount Card - Different for L4 Approver */}
             <Grid item xs={12} md={3}>
               <Zoom in style={{ transitionDelay: '200ms' }}>
                 <Paper elevation={16} sx={{ 
                   p: 3, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   textAlign: 'center'
                 }}>
                   <Avatar sx={{ bgcolor: '#667eea', mx: 'auto', mb: 2 }}>
@@ -347,30 +503,30 @@ const Dashboard = () => {
                   <Typography variant="h4" fontWeight={700} color="#667eea">
                     ₹{Number(stats.totalAmount || 0).toLocaleString()}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Amount (YTD)
+                  <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
+                    {user?.role?.toLowerCase() === 'l4_approver' ? 'Total System Expenses' : t('totalAmountYTD')}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
                     <TrendingUpIcon sx={{ color: '#4caf50', fontSize: 16, mr: 0.5 }} />
                     <Typography variant="caption" color="#4caf50">
-                      +12.5% vs last year
+                      +12.5% {t('vsLastYear')}
                     </Typography>
                   </Box>
                 </Paper>
               </Zoom>
             </Grid>
             
-            {/* Hide approval cards for L4 Approver and submitter */}
-            {user?.role?.toLowerCase() !== 'l4_approver' && user?.role?.toLowerCase() !== 'submitter' && (
+            {/* Show approval cards for approvers, but different for L4 Approver */}
+            {user?.role?.toLowerCase() !== 'submitter' && (
               <>
             <Grid item xs={12} md={3}>
               <Zoom in style={{ transitionDelay: '400ms' }}>
                 <Paper elevation={16} sx={{ 
                   p: 3, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   textAlign: 'center'
                 }}>
                   <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
@@ -379,8 +535,9 @@ const Dashboard = () => {
                   <Typography variant="h4" fontWeight={700} color="#ff9800">
                     {Number(stats.pendingApprovals || 0).toLocaleString()}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Pending Approvals
+                  <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
+                    {user?.role?.toLowerCase() === 'l3_approver' ? 'Pending Payments' : 
+                     user?.role?.toLowerCase() === 'l4_approver' ? 'System Pending Approvals' : 'Pending Approvals'}
                   </Typography>
                   <Chip 
                     label="Action Required" 
@@ -396,9 +553,9 @@ const Dashboard = () => {
                 <Paper elevation={16} sx={{ 
                   p: 3, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   textAlign: 'center'
                 }}>
                   <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
@@ -407,8 +564,9 @@ const Dashboard = () => {
                   <Typography variant="h4" fontWeight={700} color="#4caf50">
                     {Number(stats.approvedThisMonth || 0).toLocaleString()}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Approved This Month
+                  <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
+                    {user?.role?.toLowerCase() === 'l3_approver' ? 'Processed Payments' : 
+                     user?.role?.toLowerCase() === 'l4_approver' ? 'System Approvals This Month' : 'Approved This Month'}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
                     <TrendingUpIcon sx={{ color: '#4caf50', fontSize: 16, mr: 0.5 }} />
@@ -421,15 +579,47 @@ const Dashboard = () => {
             </Grid>
               </>
             )}
+
+            {/* Payment Processed Card for L4 Approver */}
+            {user?.role?.toLowerCase() === 'l4_approver' && (
+              <Grid item xs={12} md={3}>
+                <Zoom in style={{ transitionDelay: '700ms' }}>
+                  <Paper elevation={16} sx={{ 
+                    p: 3, 
+                    borderRadius: 3, 
+                    background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                    backdropFilter: 'blur(10px)',
+                    border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                    textAlign: 'center'
+                  }}>
+                    <Avatar sx={{ bgcolor: '#9c27b0', mx: 'auto', mb: 2 }}>
+                      <PaymentIcon />
+                    </Avatar>
+                    <Typography variant="h4" fontWeight={700} color="#9c27b0">
+                      {Number(stats.paymentProcessed || 0).toLocaleString()}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
+                      Payment Processed This Month
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
+                      <TrendingUpIcon sx={{ color: '#9c27b0', fontSize: 16, mr: 0.5 }} />
+                      <Typography variant="caption" color="#9c27b0">
+                        System-wide
+                      </Typography>
+                    </Box>
+                  </Paper>
+                </Zoom>
+              </Grid>
+            )}
             
             <Grid item xs={12} md={3}>
               <Zoom in style={{ transitionDelay: '800ms' }}>
                 <Paper elevation={16} sx={{ 
                   p: 3, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   textAlign: 'center'
                 }}>
                   <Avatar sx={{ bgcolor: '#f44336', mx: 'auto', mb: 2 }}>
@@ -438,7 +628,7 @@ const Dashboard = () => {
                   <Typography variant="h4" fontWeight={700} color="#f44336">
                     {Number(stats.budgetUtilization || 0).toLocaleString()}%
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                     Budget Utilization
                   </Typography>
                   <LinearProgress 
@@ -449,6 +639,98 @@ const Dashboard = () => {
                 </Paper>
               </Zoom>
             </Grid>
+
+            {/* Additional Super Admin Cards for L4 Approver */}
+            {user?.role?.toLowerCase() === 'l4_approver' && (
+              <>
+                <Grid item xs={12} md={3}>
+                  <Zoom in style={{ transitionDelay: '1000ms' }}>
+                    <Paper elevation={16} sx={{ 
+                      p: 3, 
+                      borderRadius: 3, 
+                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center'
+                    }}>
+                      <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
+                        <PeopleIcon />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight={700} color="#4caf50">
+                        {Number(stats.totalUsers || 0).toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
+                        Total Users
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
+                        <TrendingUpIcon sx={{ color: '#4caf50', fontSize: 16, mr: 0.5 }} />
+                        <Typography variant="caption" color="#4caf50">
+                          Active System
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  </Zoom>
+                </Grid>
+
+                <Grid item xs={12} md={3}>
+                  <Zoom in style={{ transitionDelay: '1200ms' }}>
+                    <Paper elevation={16} sx={{ 
+                      p: 3, 
+                      borderRadius: 3, 
+                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center'
+                    }}>
+                      <Avatar sx={{ bgcolor: '#2196f3', mx: 'auto', mb: 2 }}>
+                        <BusinessIcon />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight={700} color="#2196f3">
+                        {Number(stats.totalSites || 0).toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
+                        Total Sites
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
+                        <TrendingUpIcon sx={{ color: '#2196f3', fontSize: 16, mr: 0.5 }} />
+                        <Typography variant="caption" color="#2196f3">
+                          Operational
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  </Zoom>
+                </Grid>
+
+                <Grid item xs={12} md={3}>
+                  <Zoom in style={{ transitionDelay: '1400ms' }}>
+                    <Paper elevation={16} sx={{ 
+                      p: 3, 
+                      borderRadius: 3, 
+                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center'
+                    }}>
+                      <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
+                        <ReceiptIcon />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight={700} color="#ff9800">
+                        ₹{Number(stats.systemExpenses || 0).toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
+                        This Month Expenses
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
+                        <TrendingUpIcon sx={{ color: '#ff9800', fontSize: 16, mr: 0.5 }} />
+                        <Typography variant="caption" color="#ff9800">
+                          Current Period
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  </Zoom>
+                </Grid>
+              </>
+            )}
           </Grid>
 
           <Grid container spacing={4}>
@@ -458,13 +740,13 @@ const Dashboard = () => {
                 <Paper elevation={16} sx={{ 
                   p: 4, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   height: 'fit-content'
                 }}>
                   <Typography variant="h6" fontWeight={600} color="#667eea" gutterBottom>
-                    Quick Actions
+                    {t('quickActions')}
                   </Typography>
                   
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -490,7 +772,7 @@ const Dashboard = () => {
                             <Typography variant="body2" fontWeight={600}>
                               {action.title}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                               {action.description}
                             </Typography>
                           </Box>
@@ -508,26 +790,26 @@ const Dashboard = () => {
                 <Paper elevation={16} sx={{ 
                   p: 4, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   height: 'fit-content',
                   minHeight: 400
                 }}>
                   <Typography variant="h6" fontWeight={600} color="#667eea" gutterBottom>
-                    Recent Activities
+                    {t('recentActivities')}
                   </Typography>
                   
                   {/* Summary Section */}
                   {recentActivities.length > 0 && (
                     <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(102, 126, 234, 0.05)', borderRadius: 2 }}>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Recent Updates
+                      <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }} gutterBottom>
+                        {t('recentUpdates')}
                       </Typography>
                       <Typography variant="h6" fontWeight={600} color="#667eea">
-                        {recentActivities.length} activit{recentActivities.length === 1 ? 'y' : 'ies'}
+                        {recentActivities.length} {t('activities')}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                         {recentActivities.length > 0 ? `Last ${recentActivities[recentActivities.length - 1].time}` : 'No recent activity'}
                       </Typography>
                     </Box>
@@ -550,10 +832,10 @@ const Dashboard = () => {
                             }
                             secondary={
                               <Box>
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                                   {activity.description}
                                 </Typography>
-                                <Typography variant="caption" display="block" color="text.secondary">
+                                <Typography variant="caption" display="block" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                                   {activity.time}
                                 </Typography>
                               </Box>
@@ -590,27 +872,27 @@ const Dashboard = () => {
                 <Paper elevation={16} sx={{ 
                   p: 4, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   height: 'fit-content',
                   minHeight: 400
                 }}>
                   <Typography variant="h6" fontWeight={600} color="#667eea" gutterBottom>
-                    Top Expense Categories
+                    {t('topExpenseCategories')}
                   </Typography>
                   
                   {/* Summary Section */}
                   {topCategories.length > 0 && (
                     <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(102, 126, 234, 0.05)', borderRadius: 2 }}>
                       <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Total Spent
+                        {t('totalSpent')}
                       </Typography>
                       <Typography variant="h6" fontWeight={600} color="#667eea">
                         ₹{topCategories.reduce((sum, cat) => sum + cat.amount, 0).toLocaleString()}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Across {topCategories.length} categor{topCategories.length === 1 ? 'y' : 'ies'}
+                        {t('acrossCategories', { count: topCategories.length })}
                       </Typography>
                     </Box>
                   )}

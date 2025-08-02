@@ -11,10 +11,12 @@ import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { useNavigate } from 'react-router-dom';
 import { expenseAPI, siteAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const ExpenseForm = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { darkMode } = useTheme();
   
   // All hooks must be called before any conditional logic
   const [attachments, setAttachments] = useState([]);
@@ -286,7 +288,7 @@ const ExpenseForm = () => {
         category: formData.category, // yeh karo, hardcoded mat bhejo
         expenseDate: new Date().toISOString(),
         submittedById: user?._id || 'current-user-id', // Use current logged in user
-        siteId: user?.site?._id || formData.siteId, // Use current user's site
+        siteId: typeof user?.site === 'string' ? user.site : (user?.site?._id || user?.site?.id || user?.site) || formData.siteId, // Use current user's site
         department: user?.department || formData.department || "Operations",
         vehicleKm: {
           startKm: 0,
@@ -306,6 +308,9 @@ const ExpenseForm = () => {
       };
 
       // Log the final payload for debugging
+      console.log('User object:', user);
+      console.log('User site:', user?.site);
+      console.log('Site ID:', user?.site?._id || user?.site?.id);
       console.log('Expense Data Payload:', expenseData);
 
       // Submit expense using the API service
@@ -402,9 +407,9 @@ const ExpenseForm = () => {
                 <Paper elevation={16} sx={{ 
                   p: 4, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)'
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)'
                 }}>
                   <form onSubmit={handleSubmit}>
                     <Grid container spacing={3}>
@@ -418,8 +423,33 @@ const ExpenseForm = () => {
                           onChange={handleInputChange('expenseNumber')}
                           placeholder="Enter expense number"
                           helperText="Auto-generated unique expense number"
-                          InputProps={{
-                            sx: { borderRadius: 2 }
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              borderRadius: 2,
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
+                            '& .MuiFormHelperText-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                            },
                           }}
                         />
                       </Grid>
@@ -433,8 +463,33 @@ const ExpenseForm = () => {
                           onChange={handleInputChange('title')}
                           placeholder="Enter expense title"
                           helperText="Enter a descriptive title for this expense"
-                          InputProps={{
-                            sx: { borderRadius: 2 }
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              borderRadius: 2,
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
+                            '& .MuiFormHelperText-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                            },
                           }}
                         />
                       </Grid>
@@ -448,9 +503,38 @@ const ExpenseForm = () => {
                             displayEmpty
                             renderValue={(selected) => {
                               if (!selected) {
-                                return <em style={{ color: 'rgba(0, 0, 0, 0.38)' }}>Site</em>;
+                                return <em style={{ color: darkMode ? 'rgba(255, 255, 255, 0.38)' : 'rgba(0, 0, 0, 0.38)' }}>Site</em>;
                               }
                               return selected;
+                            }}
+                            sx={{
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '& .MuiSelect-icon': {
+                                color: darkMode ? '#b0b0b0' : '#666666',
+                              },
+                            }}
+                            MenuProps={{
+                              PaperProps: {
+                                sx: {
+                                  bgcolor: darkMode ? '#2a2a2a' : '#ffffff',
+                                  '& .MuiMenuItem-root': {
+                                    color: darkMode ? '#e0e0e0' : '#333333',
+                                    '&:hover': {
+                                      bgcolor: darkMode ? '#333333' : '#f5f5f5',
+                                    },
+                                  },
+                                },
+                              },
                             }}
                           >
                             <MenuItem value="" disabled>
@@ -472,9 +556,38 @@ const ExpenseForm = () => {
                             displayEmpty
                             renderValue={(selected) => {
                               if (!selected) {
-                                return <em style={{ color: 'rgba(0, 0, 0, 0.38)' }}>Category</em>;
+                                return <em style={{ color: darkMode ? 'rgba(255, 255, 255, 0.38)' : 'rgba(0, 0, 0, 0.38)' }}>Category</em>;
                               }
                               return selected;
+                            }}
+                            sx={{
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '& .MuiSelect-icon': {
+                                color: darkMode ? '#b0b0b0' : '#666666',
+                              },
+                            }}
+                            MenuProps={{
+                              PaperProps: {
+                                sx: {
+                                  bgcolor: darkMode ? '#2a2a2a' : '#ffffff',
+                                  '& .MuiMenuItem-root': {
+                                    color: darkMode ? '#e0e0e0' : '#333333',
+                                    '&:hover': {
+                                      bgcolor: darkMode ? '#333333' : '#f5f5f5',
+                                    },
+                                  },
+                                },
+                              },
                             }}
                           >
                             <MenuItem value="" disabled>
@@ -496,7 +609,31 @@ const ExpenseForm = () => {
                           onChange={handleInputChange('amount')}
                           required
                           InputProps={{
-                            startAdornment: <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>₹</Typography>
+                            startAdornment: <Typography variant="body2" color={darkMode ? '#b0b0b0' : 'text.secondary'} sx={{ mr: 1 }}>₹</Typography>
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -592,9 +729,38 @@ const ExpenseForm = () => {
                             displayEmpty
                             renderValue={(selected) => {
                               if (!selected) {
-                                return <em style={{ color: 'rgba(0, 0, 0, 0.38)' }}>Payment Method</em>;
+                                return <em style={{ color: darkMode ? 'rgba(255, 255, 255, 0.38)' : 'rgba(0, 0, 0, 0.38)' }}>Payment Method</em>;
                               }
                               return selected;
+                            }}
+                            sx={{
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '& .MuiSelect-icon': {
+                                color: darkMode ? '#b0b0b0' : '#666666',
+                              },
+                            }}
+                            MenuProps={{
+                              PaperProps: {
+                                sx: {
+                                  bgcolor: darkMode ? '#2a2a2a' : '#ffffff',
+                                  '& .MuiMenuItem-root': {
+                                    color: darkMode ? '#e0e0e0' : '#333333',
+                                    '&:hover': {
+                                      bgcolor: darkMode ? '#333333' : '#f5f5f5',
+                                    },
+                                  },
+                                },
+                              },
                             }}
                           >
                             <MenuItem value="" disabled>
@@ -615,9 +781,38 @@ const ExpenseForm = () => {
                             displayEmpty
                             renderValue={(selected) => {
                               if (!selected) {
-                                return <em style={{ color: 'rgba(0, 0, 0, 0.38)' }}>Priority</em>;
+                                return <em style={{ color: darkMode ? 'rgba(255, 255, 255, 0.38)' : 'rgba(0, 0, 0, 0.38)' }}>Priority</em>;
                               }
                               return selected;
+                            }}
+                            sx={{
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '& .MuiSelect-icon': {
+                                color: darkMode ? '#b0b0b0' : '#666666',
+                              },
+                            }}
+                            MenuProps={{
+                              PaperProps: {
+                                sx: {
+                                  bgcolor: darkMode ? '#2a2a2a' : '#ffffff',
+                                  '& .MuiMenuItem-root': {
+                                    color: darkMode ? '#e0e0e0' : '#333333',
+                                    '&:hover': {
+                                      bgcolor: darkMode ? '#333333' : '#f5f5f5',
+                                    },
+                                  },
+                                },
+                              },
                             }}
                           >
                             <MenuItem value="" disabled>
@@ -727,9 +922,9 @@ const ExpenseForm = () => {
                 <Paper elevation={16} sx={{ 
                   p: 4, 
                   borderRadius: 3, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   height: 'fit-content'
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -771,7 +966,7 @@ const ExpenseForm = () => {
                         Take Photo
                       </Button>
                     </Box>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                       Upload files or take photos of receipts, invoices, and documents
                     </Typography>
                   </Box>
@@ -794,7 +989,7 @@ const ExpenseForm = () => {
                                 <Typography variant="body2" fontWeight={500}>
                                   {file.name}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                                   {file.source === 'camera' ? 'Camera Photo' : 'Uploaded File'} • {(file.size / 1024 / 1024).toFixed(2)} MB
                                 </Typography>
                               </Box>

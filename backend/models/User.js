@@ -117,6 +117,10 @@ const userSchema = new mongoose.Schema({
   emailVerificationToken: String,
   emailVerificationExpire: Date,
   preferences: {
+    darkMode: {
+      type: Boolean,
+      default: false
+    },
     notifications: {
       email: {
         type: Boolean,

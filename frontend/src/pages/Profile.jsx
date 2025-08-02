@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, Paper, TextField, Button, Grid, Avatar, Fade, Zoom, Card, CardContent, IconButton, Chip } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -8,33 +8,172 @@ import EmailIcon from '@mui/icons-material/Email';
 import PhoneIcon from '@mui/icons-material/Phone';
 import BusinessIcon from '@mui/icons-material/Business';
 import SecurityIcon from '@mui/icons-material/Security';
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { dashboardAPI } from '../services/api';
 
 const Profile = () => {
+  const { user, getUserRole } = useAuth();
+  const { darkMode } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [userStats, setUserStats] = useState(null);
+  const [statsError, setStatsError] = useState(null);
   const [profileData, setProfileData] = useState({
-    name: 'Aastha',
-    email: 'aastha@rakshaksecuritas.com',
-    phone: '+91 98765 43210',
-    role: 'Admin',
-    department: 'Finance',
-    employeeId: 'RS001',
-    joinDate: '2023-01-15',
-    bankName: 'HDFC Bank',
-    accountNumber: 'XXXX XXXX 1234',
-    ifscCode: 'HDFC0001234'
+    name: '',
+    email: '',
+    phone: '',
+    role: '',
+    department: '',
+    employeeId: '',
+    joinDate: '',
+    bankName: '',
+    accountNumber: '',
+    ifscCode: ''
   });
 
-  const stats = [
-    { label: 'Total Expenses', value: '₹45,000', icon: '💰' },
-    { label: 'Pending Approvals', value: '8', icon: '⏳' },
-    { label: 'Approved This Month', value: '₹12,500', icon: '✅' },
-    { label: 'Sites Managed', value: '5', icon: '🏢' }
-  ];
+  // Initialize profile data from user context and fetch user stats
+  useEffect(() => {
+    const initializeProfile = async () => {
+      if (user) {
+        const userRole = getUserRole();
+        setProfileData({
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          role: userRole || user.role || '',
+          department: user.department || 'External',
+          employeeId: user.employeeId || '',
+          joinDate: user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : '',
+          bankName: user.bankDetails?.bankName || '',
+          accountNumber: user.bankDetails?.accountNumber || '',
+          ifscCode: user.bankDetails?.ifscCode || ''
+        });
+
+        // Fetch real user statistics
+        try {
+          const response = await dashboardAPI.getOverview();
+          if (response.data.success) {
+            setUserStats(response.data.data);
+            setStatsError(null);
+          }
+        } catch (error) {
+          console.error('Error fetching user stats:', error);
+          setStatsError('Failed to load statistics');
+        }
+        
+        setLoading(false);
+      }
+    };
+
+    initializeProfile();
+  }, [user, getUserRole]);
+
+  // Dynamic stats based on user role and real data
+  const getStats = () => {
+    const userRole = getUserRole();
+    
+    if (!userStats) {
+      // Return loading placeholders if stats haven't loaded yet
+      return [
+        { label: 'Loading...', value: '...', icon: '⏳' },
+        { label: 'Loading...', value: '...', icon: '⏳' },
+        { label: 'Loading...', value: '...', icon: '⏳' },
+        { label: 'Loading...', value: '...', icon: '⏳' }
+      ];
+    }
+
+    if (statsError) {
+      // Return error placeholders if stats failed to load
+      return [
+        { label: 'Error Loading', value: 'N/A', icon: '❌' },
+        { label: 'Error Loading', value: 'N/A', icon: '❌' },
+        { label: 'Error Loading', value: 'N/A', icon: '❌' },
+        { label: 'Error Loading', value: 'N/A', icon: '❌' }
+      ];
+    }
+
+    if (userRole === 'L3_APPROVER') {
+      return [
+        { 
+          label: 'Total Expenses Processed', 
+          value: `₹${userStats.userStats?.totalAmount?.toLocaleString() || 0}`, 
+          icon: '💰' 
+        },
+        { 
+          label: 'Pending Payments', 
+          value: userStats.userStats?.pendingExpenses || 0, 
+          icon: '⏳' 
+        },
+        { 
+          label: 'Processed This Month', 
+          value: `₹${userStats.userStats?.totalAmount?.toLocaleString() || 0}`, 
+          icon: '✅' 
+        },
+        { 
+          label: 'Sites Managed', 
+          value: userStats.systemStats?.totalSites || 0, 
+          icon: '🏢' 
+        }
+      ];
+    } else if (userRole === 'L2_APPROVER' || userRole === 'L1_APPROVER') {
+      return [
+        { 
+          label: 'Total Expenses Reviewed', 
+          value: `₹${userStats.userStats?.totalAmount?.toLocaleString() || 0}`, 
+          icon: '💰' 
+        },
+        { 
+          label: 'Pending Approvals', 
+          value: userStats.pendingApprovalsCount || 0, 
+          icon: '⏳' 
+        },
+        { 
+          label: user?.role?.toLowerCase() === 'l3_approver' ? 'Processed Payments' : 'Approved This Month', 
+          value: `₹${userStats.userStats?.totalAmount?.toLocaleString() || 0}`, 
+          icon: '✅' 
+        },
+        { 
+          label: 'Sites Managed', 
+          value: userStats.systemStats?.totalSites || 0, 
+          icon: '🏢' 
+        }
+      ];
+    } else {
+      // Submitter stats - using real data
+      return [
+        { 
+          label: 'Total Expenses Submitted', 
+          value: userStats.userStats?.totalExpenses || 0, 
+          icon: '💰' 
+        },
+        { 
+          label: 'Total Amount', 
+          value: `₹${userStats.userStats?.totalAmount?.toLocaleString() || 0}`, 
+          icon: '💵' 
+        },
+        { 
+          label: 'Pending Approvals', 
+          value: userStats.userStats?.pendingExpenses || 0, 
+          icon: '⏳' 
+        },
+        { 
+          label: 'Rejected This Month', 
+          value: userStats.userStats?.rejectedExpenses || 0, 
+          icon: '❌' 
+        }
+      ];
+    }
+  };
+
+  const stats = getStats();
 
   const handleSave = () => {
     setIsEditing(false);
     // Here you would typically save to backend
     console.log('Profile data saved:', profileData);
+    // TODO: Implement API call to update user profile
+    // Example: await userAPI.updateProfile(profileData);
   };
 
   return (
@@ -66,6 +205,12 @@ const Profile = () => {
             My Profile
           </Typography>
           
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+              <Typography variant="h6" color="white">Loading profile data...</Typography>
+            </Box>
+          ) : (
+          
           <Grid container spacing={3}>
             {/* Profile Header */}
             <Grid item xs={12}>
@@ -73,9 +218,9 @@ const Profile = () => {
                 <Paper elevation={24} sx={{ 
                   p: 4, 
                   borderRadius: 4, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
@@ -87,7 +232,7 @@ const Profile = () => {
                         <Typography variant="h4" fontWeight={700} color="#667eea">
                           {profileData.name}
                         </Typography>
-                        <Typography variant="subtitle1" color="text.secondary">
+                        <Typography variant="subtitle1" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                           {profileData.role} • {profileData.department}
                         </Typography>
                         <Chip label={profileData.employeeId} color="primary" size="small" sx={{ mt: 1 }} />
@@ -116,7 +261,7 @@ const Profile = () => {
                     <Zoom in style={{ transitionDelay: `${400 + index * 100}ms` }}>
                       <Card elevation={8} sx={{ 
                         borderRadius: 3, 
-                        background: 'rgba(255,255,255,0.9)',
+                        background: darkMode ? 'rgba(26,26,26,0.9)' : 'rgba(255,255,255,0.9)',
                         backdropFilter: 'blur(10px)',
                         transition: '0.3s',
                         '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 15px 35px rgba(0,0,0,0.2)' }
@@ -126,7 +271,7 @@ const Profile = () => {
                           <Typography variant="h5" fontWeight={700} color="#667eea" gutterBottom>
                             {stat.value}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                             {stat.label}
                           </Typography>
                         </CardContent>
@@ -143,7 +288,7 @@ const Profile = () => {
                 <Paper elevation={16} sx={{ 
                   p: 4, 
                   borderRadius: 4, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
                   height: 'fit-content'
                 }}>
@@ -197,11 +342,47 @@ const Profile = () => {
                     <Grid item xs={12}>
                       <TextField
                         fullWidth
+                        label="Role"
+                        variant="outlined"
+                        value={profileData.role}
+                        disabled={true} // Role should not be editable
+                        InputProps={{
+                          startAdornment: <SecurityIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
                         label="Department"
                         variant="outlined"
                         value={profileData.department}
                         disabled={!isEditing}
                         onChange={(e) => setProfileData({...profileData, department: e.target.value})}
+                        InputProps={{
+                          startAdornment: <BusinessIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Employee ID"
+                        variant="outlined"
+                        value={profileData.employeeId}
+                        disabled={true} // Employee ID should not be editable
+                        InputProps={{
+                          startAdornment: <SecurityIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Join Date"
+                        variant="outlined"
+                        value={profileData.joinDate}
+                        disabled={true} // Join date should not be editable
                         InputProps={{
                           startAdornment: <BusinessIcon sx={{ mr: 1, color: 'text.secondary' }} />
                         }}
@@ -218,13 +399,14 @@ const Profile = () => {
                 <Paper elevation={16} sx={{ 
                   p: 4, 
                   borderRadius: 4, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  height: 'fit-content'
+                  height: 'fit-content',
+                  border: darkMode ? '1px solid #333333' : '1px solid #e0e0e0'
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                    <SecurityIcon sx={{ color: '#667eea', mr: 2, fontSize: 28 }} />
-                    <Typography variant="h6" fontWeight={600} color="#667eea">
+                    <SecurityIcon sx={{ color: darkMode ? '#4fc3f7' : '#667eea', mr: 2, fontSize: 28 }} />
+                    <Typography variant="h6" fontWeight={600} color={darkMode ? '#4fc3f7' : '#667eea'}>
                       Bank Details
                     </Typography>
                   </Box>
@@ -238,6 +420,30 @@ const Profile = () => {
                         value={profileData.bankName}
                         disabled={!isEditing}
                         onChange={(e) => setProfileData({...profileData, bankName: e.target.value})}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                            color: darkMode ? '#e0e0e0' : '#333333',
+                            '& fieldset': {
+                              borderColor: darkMode ? '#333333' : '#e0e0e0',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: darkMode ? '#b0b0b0' : '#666666',
+                            '&.Mui-focused': {
+                              color: darkMode ? '#4fc3f7' : '#667eea',
+                            },
+                          },
+                          '& .MuiInputBase-input': {
+                            color: darkMode ? '#e0e0e0' : '#333333',
+                          },
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12}>
@@ -248,6 +454,30 @@ const Profile = () => {
                         value={profileData.accountNumber}
                         disabled={!isEditing}
                         onChange={(e) => setProfileData({...profileData, accountNumber: e.target.value})}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                            color: darkMode ? '#e0e0e0' : '#333333',
+                            '& fieldset': {
+                              borderColor: darkMode ? '#333333' : '#e0e0e0',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: darkMode ? '#b0b0b0' : '#666666',
+                            '&.Mui-focused': {
+                              color: darkMode ? '#4fc3f7' : '#667eea',
+                            },
+                          },
+                          '& .MuiInputBase-input': {
+                            color: darkMode ? '#e0e0e0' : '#333333',
+                          },
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12}>
@@ -258,6 +488,30 @@ const Profile = () => {
                         value={profileData.ifscCode}
                         disabled={!isEditing}
                         onChange={(e) => setProfileData({...profileData, ifscCode: e.target.value})}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                            color: darkMode ? '#e0e0e0' : '#333333',
+                            '& fieldset': {
+                              borderColor: darkMode ? '#333333' : '#e0e0e0',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: darkMode ? '#b0b0b0' : '#666666',
+                            '&.Mui-focused': {
+                              color: darkMode ? '#4fc3f7' : '#667eea',
+                            },
+                          },
+                          '& .MuiInputBase-input': {
+                            color: darkMode ? '#e0e0e0' : '#333333',
+                          },
+                        }}
                       />
                     </Grid>
                   </Grid>
@@ -289,6 +543,7 @@ const Profile = () => {
               </Zoom>
             </Grid>
           </Grid>
+          )}
         </Box>
       </Fade>
     </Box>

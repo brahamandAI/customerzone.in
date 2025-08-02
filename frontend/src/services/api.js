@@ -72,7 +72,7 @@ export const expenseAPI = {
 
 // Dashboard API calls
 export const dashboardAPI = {
-  getOverview: () => api.get('/dashboard/overview'),
+  getOverview: (params = {}) => api.get('/dashboard/overview', { params }),
   getStats: (params) => api.get('/dashboard/expense-stats', { params }),
   getBudgetOverview: () => api.get('/dashboard/budget-overview'),
   getPendingApprovals: () => api.get('/dashboard/pending-approvals'),

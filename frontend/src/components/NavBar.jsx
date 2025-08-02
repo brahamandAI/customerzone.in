@@ -43,7 +43,7 @@ const NavBar = () => {
     { label: 'Submit Expense', path: '/submit-expense', show: user && ['submitter', 'SUBMITTER'].includes(user?.role) },
     { label: 'Reports', path: '/reports', show: user && !['submitter', 'SUBMITTER'].includes(user?.role) },
     // Only show Approvals for non-L4 approvers and non-submitters
-    { label: 'Approvals', path: '/approval', show: user && !['l4_approver', 'L4_APPROVER', 'submitter', 'SUBMITTER'].includes(user?.role) },
+    { label: user?.role?.toLowerCase() === 'l3_approver' ? 'Payment Processing' : 'Approvals', path: '/approval', show: user && !['l4_approver', 'L4_APPROVER', 'submitter', 'SUBMITTER'].includes(user?.role) },
     // L2, L3, and L4 approvers can see admin panel
     { label: 'Admin', path: '/admin', show: hasPermission('l2_approver') || ['l4_approver', 'L4_APPROVER'].includes(user?.role) },
   ].filter(item => item.show);

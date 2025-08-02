@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Box, Typography, Paper, TextField, Button, Grid, Avatar, Fade, Zoom, Chip } from '@mui/material';
 import CategoryIcon from '@mui/icons-material/Category';
 import AddIcon from '@mui/icons-material/Add';
+import { useTheme } from '../context/ThemeContext';
 
 const CreateCategory = () => {
+  const { darkMode } = useTheme();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -19,7 +21,7 @@ const CreateCategory = () => {
   return (
     <Box sx={{ 
       minHeight: '100vh', 
-      background: 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
+      background: darkMode ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)' : 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
       p: 4,
       position: 'relative',
       overflow: 'hidden'
@@ -31,7 +33,9 @@ const CreateCategory = () => {
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'url("data:image/svg+xml,%3Csvg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.03"%3E%3Cpath d="M40 40c0-11.046-8.954-20-20-20s-20 8.954-20 20 8.954 20 20 20 20-8.954 20-20zm0 0c0 11.046 8.954 20 20 20s20-8.954 20-20-8.954-20-20-20-20 8.954-20 20z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+        background: darkMode 
+          ? 'url("data:image/svg+xml,%3Csvg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.01"%3E%3Cpath d="M40 40c0-11.046-8.954-20-20-20s-20 8.954-20 20 8.954 20 20 20 20-8.954 20-20zm0 0c0 11.046 8.954 20 20 20s20-8.954 20-20-8.954-20-20-20-20 8.954-20 20z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")'
+          : 'url("data:image/svg+xml,%3Csvg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.03"%3E%3Cpath d="M40 40c0-11.046-8.954-20-20-20s-20 8.954-20 20 8.954 20 20 20 20-8.954 20-20zm0 0c0 11.046 8.954 20 20 20s20-8.954 20-20-8.954-20-20-20-20 8.954-20 20z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
         animation: 'pulse 15s ease-in-out infinite',
         '@keyframes pulse': {
           '0%, 100%': { opacity: 0.5 },
@@ -51,16 +55,16 @@ const CreateCategory = () => {
                 <Paper elevation={24} sx={{ 
                   p: 4, 
                   borderRadius: 4, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid #333333' : '1px solid rgba(255,255,255,0.2)',
                   boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                    <Avatar sx={{ bgcolor: '#f093fb', mr: 2, width: 56, height: 56 }}>
+                    <Avatar sx={{ bgcolor: darkMode ? '#4fc3f7' : '#f093fb', mr: 2, width: 56, height: 56 }}>
                       <CategoryIcon fontSize="large" />
                     </Avatar>
-                    <Typography variant="h5" fontWeight={700} color="#f093fb">
+                    <Typography variant="h5" fontWeight={700} color={darkMode ? '#4fc3f7' : '#f093fb'}>
                       Category Details
                     </Typography>
                   </Box>
@@ -76,9 +80,27 @@ const CreateCategory = () => {
                           onChange={(e) => setFormData({...formData, name: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#f093fb' },
-                              '&.Mui-focused fieldset': { borderColor: '#f093fb' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#f093fb' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#f093fb' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#f093fb',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -93,9 +115,27 @@ const CreateCategory = () => {
                           onChange={(e) => setFormData({...formData, description: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#f093fb' },
-                              '&.Mui-focused fieldset': { borderColor: '#f093fb' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#f093fb' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#f093fb' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#f093fb',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -109,15 +149,33 @@ const CreateCategory = () => {
                           onChange={(e) => setFormData({...formData, budgetLimit: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#f093fb' },
-                              '&.Mui-focused fieldset': { borderColor: '#f093fb' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#f093fb' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#f093fb' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#f093fb',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
                       <Grid item xs={12} sm={6}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Typography variant="body2" color="text.secondary">Color:</Typography>
+                          <Typography variant="body2" color={darkMode ? '#b0b0b0' : 'text.secondary'}>Color:</Typography>
                           <Chip 
                             label="Default" 
                             sx={{ 
@@ -137,17 +195,17 @@ const CreateCategory = () => {
                           fullWidth
                           startIcon={<AddIcon />}
                           sx={{
-                            background: 'linear-gradient(45deg, #f093fb 30%, #f5576c 90%)',
+                            background: darkMode ? 'linear-gradient(45deg, #4fc3f7 30%, #29b6f6 90%)' : 'linear-gradient(45deg, #f093fb 30%, #f5576c 90%)',
                             borderRadius: 3,
                             py: 1.5,
                             fontSize: '1.1rem',
                             fontWeight: 700,
                             textTransform: 'none',
-                            boxShadow: '0 8px 32px rgba(240, 147, 251, 0.3)',
+                            boxShadow: darkMode ? '0 8px 32px rgba(79, 195, 247, 0.3)' : '0 8px 32px rgba(240, 147, 251, 0.3)',
                             transition: 'all 0.3s ease',
                             '&:hover': {
                               transform: 'translateY(-2px)',
-                              boxShadow: '0 12px 40px rgba(240, 147, 251, 0.4)'
+                              boxShadow: darkMode ? '0 12px 40px rgba(79, 195, 247, 0.4)' : '0 12px 40px rgba(240, 147, 251, 0.4)'
                             }
                           }}
                         >

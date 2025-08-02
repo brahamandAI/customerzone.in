@@ -4,6 +4,7 @@ const { protect, authorize, checkPermission } = require('../middleware/auth');
 const User = require('../models/User');
 const Site = require('../models/Site');
 const Expense = require('../models/Expense');
+const PendingApprover = require('../models/PendingApprovers');
 
 const router = express.Router();
 
@@ -26,6 +27,7 @@ function getTimeAgo(date) {
 router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'), asyncHandler(async (req, res) => {
   try {
     console.log('Dashboard overview request for user:', req.user._id, 'Role:', req.user.role);
+    console.log('Query parameters:', req.query); // Log query parameters for debugging
     
   const userId = req.user._id;
     const userRole = req.user.role.toLowerCase();
@@ -42,6 +44,7 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
   // Common data for all users
   const currentMonth = new Date();
   currentMonth.setDate(1);
+  currentMonth.setHours(0, 0, 0, 0);
   const nextMonth = new Date(currentMonth);
   nextMonth.setMonth(nextMonth.getMonth() + 1);
 
@@ -64,12 +67,54 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
 
   dashboardData.userStats = userStats;
 
-  // Add system-wide pending approvals count (all expenses not yet finally approved/rejected)
-  const pendingApprovalsCount = await Expense.countDocuments({
-    status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2'] },
-    isActive: true,
-    isDeleted: false
-  });
+  // Get pending approvals count based on user role and assignments
+  let pendingApprovalsCount = 0;
+  
+  if (userRole === 'l4_approver') {
+    // For L4 approver (Super Admin), count ALL pending approvals across the system
+    pendingApprovalsCount = await Expense.countDocuments({
+      status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2'] },
+      isActive: true,
+      isDeleted: false
+    });
+    console.log('🔍 L4 Approver - System-wide pending approvals count:', pendingApprovalsCount);
+  } else if (['l1_approver', 'l2_approver', 'l3_approver'].includes(userRole)) {
+    // For other approvers, count only expenses assigned to them
+    const pendingApprovals = await PendingApprover.find({
+      approver: userId,
+      status: 'pending'
+    }).select('expense');
+
+    const pendingExpenseIds = pendingApprovals.map(pa => pa.expense);
+    
+    // Role-based filtering (same logic as approval page)
+    let statusFilter = {};
+    if (userRole === 'l1_approver') {
+      statusFilter = { status: 'submitted' };
+    } else if (userRole === 'l2_approver') {
+      statusFilter = { status: 'approved_l1' };
+    } else if (userRole === 'l3_approver') {
+      statusFilter = { status: 'approved_l2' };
+    } else {
+      statusFilter = { status: { $in: ['submitted', 'approved_l1', 'approved_l2'] } };
+    }
+    
+    pendingApprovalsCount = await Expense.countDocuments({
+      _id: { $in: pendingExpenseIds },
+      ...statusFilter,
+      isActive: true,
+      isDeleted: false
+    });
+  } else {
+    // For submitters, count their own pending expenses
+    pendingApprovalsCount = await Expense.countDocuments({
+      submittedBy: userId,
+      status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2'] },
+      isActive: true,
+      isDeleted: false
+    });
+  }
+  
   dashboardData.pendingApprovalsCount = pendingApprovalsCount;
 
   // Role-specific data
@@ -86,22 +131,52 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
 
     // Site budget info
     const siteInfo = await Site.findById(userSite);
-      console.log('Site info for submitter:', {
-        siteId: userSite,
-        siteInfo: siteInfo ? {
-          budget: siteInfo.budget,
-          statistics: siteInfo.statistics,
-          budgetUtilization: siteInfo.budgetUtilization,
-          remainingBudget: siteInfo.remainingBudget
-        } : 'Site not found'
-      });
+    console.log('Site info for submitter:', {
+      siteId: userSite,
+      siteInfo: siteInfo ? {
+        budget: siteInfo.budget,
+        statistics: siteInfo.statistics,
+        budgetUtilization: siteInfo.budgetUtilization,
+        remainingBudget: siteInfo.remainingBudget
+      } : 'Site not found'
+    });
+
+    // Calculate real-time budget utilization for current month
+    const currentMonthExpenses = await Expense.aggregate([
+      {
+        $match: {
+          site: userSite,
+          isActive: true,
+          isDeleted: false,
+          expenseDate: { $gte: currentMonth, $lt: nextMonth }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalSpent: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    const monthlySpent = currentMonthExpenses[0]?.totalSpent || 0;
+    const monthlyBudget = siteInfo?.budget?.monthly || 0;
+    const remainingBudget = Math.max(0, monthlyBudget - monthlySpent);
+    const utilization = monthlyBudget > 0 ? Math.round((monthlySpent / monthlyBudget) * 100) : 0;
+
+    console.log('📊 Real-time budget calculation:', {
+      monthlyBudget,
+      monthlySpent,
+      remainingBudget,
+      utilization
+    });
     
     dashboardData.recentExpenses = recentExpenses;
     dashboardData.siteBudget = {
-        monthly: siteInfo?.budget?.monthly || 0,
-        used: siteInfo?.statistics?.monthlySpend || 0,
-        remaining: siteInfo?.remainingBudget || 0,
-        utilization: siteInfo?.budgetUtilization || (siteInfo?.budget?.monthly > 0 ? Math.round((siteInfo?.statistics?.monthlySpend / siteInfo?.budget?.monthly) * 100) : 0)
+        monthly: monthlyBudget,
+        used: monthlySpent,
+        remaining: remainingBudget,
+        utilization: utilization
     };
     dashboardData.vehicleKmLimit = siteInfo?.vehicleKmLimit;
 
@@ -232,25 +307,91 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
 
     } else if (['l1_approver', 'l2_approver', 'l3_approver', 'l4_approver'].includes(userRole)) {
       console.log('Processing dashboard for approver role:', userRole);
-      // For L4 Approver, don't show approval-related data
+      console.log('User ID for approval stats:', userId);
+      
+      // For L4 Approver, get system-wide approval statistics
       if (userRole === 'l4_approver') {
-        console.log('Setting up dashboard for L4 Approver');
-        dashboardData.pendingApprovals = [];
+        console.log('Setting up dashboard for L4 Approver - System-wide stats');
+        
+        // System-wide approval statistics for current month
+        const systemApprovalStats = await Expense.aggregate([
+          {
+            $match: {
+              'approvalHistory.date': { $gte: currentMonth, $lt: nextMonth },
+              isActive: true,
+              isDeleted: false
+            }
+          },
+          {
+            $unwind: '$approvalHistory'
+          },
+          {
+            $match: {
+              'approvalHistory.date': { $gte: currentMonth, $lt: nextMonth },
+              'approvalHistory.action': 'approved'
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalApprovals: { $sum: 1 },
+              totalAmount: { $sum: '$amount' }
+            }
+          }
+        ]);
+
+        // System-wide payment processing statistics for current month
+        const systemPaymentStats = await Expense.aggregate([
+          {
+            $match: {
+              status: 'payment_processed',
+              updatedAt: { $gte: currentMonth, $lt: nextMonth },
+              isActive: true,
+              isDeleted: false
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalPayments: { $sum: 1 },
+              totalAmount: { $sum: '$amount' }
+            }
+          }
+        ]);
+
+        const approvalResult = systemApprovalStats[0] || { totalApprovals: 0, totalAmount: 0 };
+        const paymentResult = systemPaymentStats[0] || { totalPayments: 0, totalAmount: 0 };
+
         dashboardData.approvalStats = {
-          totalApprovals: 0,
-          approvedCount: 0,
+          totalApprovals: approvalResult.totalApprovals,
+          approvedCount: approvalResult.totalApprovals,
           rejectedCount: 0,
-          totalAmount: 0
+          totalAmount: approvalResult.totalAmount
         };
+        
         dashboardData.monthlyStats = {
-          monthlyApprovedAmount: 0,
-          monthlyApprovedCount: 0
+          monthlyApprovedAmount: approvalResult.totalAmount,
+          monthlyApprovedCount: approvalResult.totalApprovals
         };
+
+        dashboardData.paymentStats = {
+          totalPayments: paymentResult.totalPayments,
+          totalAmount: paymentResult.totalAmount
+        };
+
+        console.log('📊 L4 Approver system-wide stats:', {
+          approvals: approvalResult,
+          payments: paymentResult
+        });
       } else {
         // Pending approvals for other approvers
     const pendingApprovals = await Expense.getPendingExpensesForApprover(userId);
+    console.log('Pending approvals count:', pendingApprovals.length);
     
-    // Approval statistics
+    // Approval statistics - all time
+    console.log('🔍 Starting approval stats aggregation for user:', userId);
+    console.log('🔍 Current month range:', { currentMonth, nextMonth });
+    
     const approvalStats = await Expense.aggregate([
       {
         $match: {
@@ -260,13 +401,21 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
         }
       },
       {
+        $unwind: '$approvalHistory'
+      },
+      {
+        $match: {
+          'approvalHistory.approver': userId
+        }
+      },
+      {
         $group: {
           _id: null,
           totalApprovals: { $sum: 1 },
           approvedCount: {
             $sum: {
               $cond: [
-                { $in: ['approved', '$approvalHistory.action'] },
+                { $eq: ['$approvalHistory.action', 'approved'] },
                 1,
                 0
               ]
@@ -275,114 +424,440 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
           rejectedCount: {
             $sum: {
               $cond: [
-                { $in: ['rejected', '$approvalHistory.action'] },
+                { $eq: ['$approvalHistory.action', 'rejected'] },
                 1,
                 0
               ]
             }
-              },
-              totalAmount: {
-                $sum: {
-                  $cond: [
-                    { $in: ['approved', '$approvalHistory.action'] },
-                    '$amount',
-                    0
-                  ]
-                }
+          },
+          totalAmount: {
+            $sum: {
+              $cond: [
+                { $eq: ['$approvalHistory.action', 'approved'] },
+                '$amount',
+                0
+              ]
+            }
           }
         }
       }
     ]);
 
+    console.log('📊 Raw approval stats result:', approvalStats);
+
+    // Current month approval statistics
+    console.log('🔍 Starting current month approval stats aggregation...');
+    const currentMonthApprovalStats = await Expense.aggregate([
+      {
+        $match: {
+          'approvalHistory.approver': userId,
+          isActive: true,
+          isDeleted: false
+        }
+      },
+      {
+        $unwind: '$approvalHistory'
+      },
+      {
+        $match: {
+          'approvalHistory.approver': userId,
+          $expr: {
+            $and: [
+              { $gte: [{ $toDate: '$approvalHistory.date' }, currentMonth] },
+              { $lt: [{ $toDate: '$approvalHistory.date' }, nextMonth] }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          currentMonthApprovedCount: {
+            $sum: {
+              $cond: [
+                { $eq: ['$approvalHistory.action', 'approved'] },
+                1,
+                0
+              ]
+            }
+          },
+          currentMonthRejectedCount: {
+            $sum: {
+              $cond: [
+                { $eq: ['$approvalHistory.action', 'rejected'] },
+                1,
+                0
+              ]
+            }
+          },
+          currentMonthApprovedAmount: {
+            $sum: {
+              $cond: [
+                { $eq: ['$approvalHistory.action', 'approved'] },
+                '$amount',
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    console.log('📊 Raw current month approval stats result:', currentMonthApprovalStats);
+
+    // Test query to check if there are any approval history entries
+    console.log('🧪 Testing: Checking for any approval history entries...');
+    const testApprovalHistory = await Expense.aggregate([
+      {
+        $match: {
+          'approvalHistory.approver': userId
+        }
+      },
+      {
+        $project: {
+          expenseNumber: 1,
+          amount: 1,
+          approvalHistory: {
+            $filter: {
+              input: '$approvalHistory',
+              as: 'history',
+              cond: { $eq: ['$$history.approver', userId] }
+            }
+          }
+        }
+      }
+    ]);
+    
+    console.log('🧪 Test approval history entries found:', testApprovalHistory.length);
+    if (testApprovalHistory.length > 0) {
+      console.log('🧪 Sample approval history entry:', JSON.stringify(testApprovalHistory[0], null, 2));
+    }
+
     dashboardData.pendingApprovals = pendingApprovals;
-    dashboardData.approvalStats = approvalStats[0] || {
-      totalApprovals: 0,
-      approvedCount: 0,
-          rejectedCount: 0,
-          totalAmount: 0
+    dashboardData.approvalStats = {
+      ...(approvalStats[0] || {
+        totalApprovals: 0,
+        approvedCount: 0,
+        rejectedCount: 0,
+        totalAmount: 0
+      }),
+      // Add current month stats
+      approvedCount: currentMonthApprovalStats[0]?.currentMonthApprovedCount || 0,
+      rejectedCount: currentMonthApprovalStats[0]?.currentMonthRejectedCount || 0,
+      currentMonthApprovedAmount: currentMonthApprovalStats[0]?.currentMonthApprovedAmount || 0
     };
 
-        // Get current month's approved amount
-        const currentMonth = new Date();
-        currentMonth.setDate(1);
-        const nextMonth = new Date(currentMonth);
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
+    console.log('Approval stats calculated:', {
+      allTime: approvalStats[0] || { totalApprovals: 0, approvedCount: 0, rejectedCount: 0, totalAmount: 0 },
+      currentMonth: currentMonthApprovalStats[0] || { currentMonthApprovedCount: 0, currentMonthRejectedCount: 0, currentMonthApprovedAmount: 0 },
+      finalStats: dashboardData.approvalStats
+    });
 
-        const monthlyStats = await Expense.aggregate([
+    // Use the current month stats for monthlyStats as well
+    dashboardData.monthlyStats = {
+      monthlyApprovedAmount: currentMonthApprovalStats[0]?.currentMonthApprovedAmount || 0,
+      monthlyApprovedCount: currentMonthApprovalStats[0]?.currentMonthApprovedCount || 0
+    };
+      }
+
+      // Add budget utilization, recent activities, and top categories for L1/L2/L3 approvers
+      if (userRole === 'l1_approver' || userRole === 'l2_approver' || userRole === 'l3_approver') {
+        console.log('🔍 Adding budget utilization, recent activities, and top categories for L1/L2/L3 approver...');
+        
+        // Get site info for budget utilization
+        const siteInfo = await Site.findById(userSite);
+        console.log('Site info for L1/L2 approver:', {
+          siteId: userSite,
+          siteInfo: siteInfo ? {
+            budget: siteInfo.budget,
+            statistics: siteInfo.statistics,
+            budgetUtilization: siteInfo.budgetUtilization,
+            remainingBudget: siteInfo.remainingBudget
+          } : 'Site not found'
+        });
+
+        // Calculate real-time budget utilization for current month (same as submitter)
+        const currentMonthExpenses = await Expense.aggregate([
           {
             $match: {
-              'approvalHistory.approver': userId,
-              'approvalHistory.action': 'approved',
-              'approvalHistory.date': { $gte: currentMonth, $lt: nextMonth },
+              site: userSite,
               isActive: true,
-              isDeleted: false
+              isDeleted: false,
+              expenseDate: { $gte: currentMonth, $lt: nextMonth }
             }
           },
           {
             $group: {
               _id: null,
-              monthlyApprovedAmount: { $sum: '$amount' },
-              monthlyApprovedCount: { $sum: 1 }
+              totalSpent: { $sum: '$amount' }
             }
           }
         ]);
 
-        dashboardData.monthlyStats = monthlyStats[0] || {
-          monthlyApprovedAmount: 0,
-          monthlyApprovedCount: 0
+        const monthlySpent = currentMonthExpenses[0]?.totalSpent || 0;
+        const monthlyBudget = siteInfo?.budget?.monthly || 0;
+        const remainingBudget = Math.max(0, monthlyBudget - monthlySpent);
+        const utilization = monthlyBudget > 0 ? Math.round((monthlySpent / monthlyBudget) * 100) : 0;
+
+        console.log('📊 Real-time budget calculation for L1/L2 approver:', {
+          monthlyBudget,
+          monthlySpent,
+          remainingBudget,
+          utilization
+        });
+        
+        dashboardData.siteBudget = {
+            monthly: monthlyBudget,
+            used: monthlySpent,
+            remaining: remainingBudget,
+            utilization: utilization
         };
-      }
+        dashboardData.vehicleKmLimit = siteInfo?.vehicleKmLimit;
 
-      // If L3 or L4 approver, get system-wide statistics
-      if (userRole === 'l3_approver' || userRole === 'l4_approver') {
-      const systemStats = await getSystemStatistics();
-      dashboardData.systemStats = systemStats;
+        // Recent activities for L1/L2 approver (expenses they've approved/rejected)
+        console.log('🔍 Processing recent activities for L1/L2 approver...');
+        
+        const approverRecentExpenses = await Expense.find({
+          'approvalHistory.approver': userId,
+          isActive: true,
+          isDeleted: false
+        })
+        .populate('site', 'name code')
+        .populate('submittedBy', 'name email')
+        .sort({ updatedAt: -1 })
+        .limit(10);
 
-      // Budget alerts
-      const budgetAlerts = await Site.getSitesWithBudgetAlerts();
-      dashboardData.budgetAlerts = budgetAlerts;
+        console.log(`📝 Found ${approverRecentExpenses.length} recent expenses for L1/L2 approver`);
 
-      // Recent activity
-      const recentActivity = await getRecentActivity();
-      dashboardData.recentActivity = recentActivity;
+        dashboardData.recentActivities = approverRecentExpenses.map(expense => {
+          // Find the user's approval action in the approval history
+          const userApproval = expense.approvalHistory.find(history => 
+            history.approver.toString() === userId.toString()
+          );
 
-      // For approvers, use the general recent activity
-      dashboardData.recentActivities = recentActivity.map(activity => ({
-        id: activity.expense.id,
-        type: activity.type,
-        title: `${activity.expense.title} ${activity.expense.status}`,
-        description: `${activity.site?.name || 'Unknown Site'} - ₹${activity.expense.amount.toLocaleString()}`,
-        time: getTimeAgo(activity.timestamp),
-        status: activity.expense.status
-      }));
+          let title = '';
+          let type = '';
+          let status = '';
 
-      // Top categories for approvers (system-wide or site-specific)
-      let matchFilter = { isActive: true, isDeleted: false };
-      
-      if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
-        matchFilter.site = req.user.site?._id;
-      }
-
-      const topCategories = await Expense.aggregate([
-        { $match: matchFilter },
-        {
-          $group: {
-            _id: '$category',
-            totalAmount: { $sum: '$amount' },
-            count: { $sum: 1 }
+          if (userApproval) {
+            switch (userApproval.action) {
+              case 'approved':
+                title = 'Expense approved';
+                type = 'expense_approved';
+                status = 'approved';
+                break;
+              case 'rejected':
+                title = 'Expense rejected';
+                type = 'expense_rejected';
+                status = 'rejected';
+                break;
+              default:
+                title = 'Expense reviewed';
+                type = 'expense_reviewed';
+                status = 'pending';
+            }
+          } else {
+            title = 'Expense reviewed';
+            type = 'expense_reviewed';
+            status = 'pending';
           }
-        },
-        {
-          $sort: { totalAmount: -1 }
-        },
-        {
-          $limit: 5
-        }
-      ]);
 
-      // Calculate percentages
-      const totalExpenses = await Expense.aggregate([
-        { $match: matchFilter },
+          return {
+            id: expense._id,
+            type: type,
+            title: title,
+            description: `${expense.site?.name || 'Unknown Site'} - ₹${expense.amount.toLocaleString()} by ${expense.submittedBy?.name || 'Unknown User'}`,
+            time: getTimeAgo(expense.updatedAt),
+            status: status
+          };
+        });
+
+        console.log(`✅ Created ${dashboardData.recentActivities.length} recent activities for L1/L2/L3 approver`);
+
+        // Top expense categories for L1/L2/L3 approver (expenses they've approved/rejected)
+        console.log('🔍 Processing top categories for L1/L2/L3 approver...');
+        
+        const topCategories = await Expense.aggregate([
+          {
+            $match: {
+              'approvalHistory.approver': userId,
+              isActive: true,
+              isDeleted: false
+            }
+          },
+          {
+            $unwind: '$approvalHistory'
+          },
+          {
+            $match: {
+              'approvalHistory.approver': userId
+            }
+          },
+          {
+            $group: {
+              _id: '$category',
+              totalAmount: { $sum: '$amount' },
+              count: { $sum: 1 }
+            }
+          },
+          {
+            $sort: { totalAmount: -1 }
+          },
+          {
+            $limit: 5
+          }
+        ]);
+
+        console.log(`📊 Found ${topCategories.length} top categories for L1/L2 approver`);
+
+        // Calculate percentages
+        const totalApproverExpenses = await Expense.aggregate([
+          {
+            $match: {
+              'approvalHistory.approver': userId,
+              isActive: true,
+              isDeleted: false
+            }
+          },
+          {
+            $unwind: '$approvalHistory'
+          },
+          {
+            $match: {
+              'approvalHistory.approver': userId
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalAmount: { $sum: '$amount' }
+            }
+          }
+        ]);
+
+        const approverTotalAmount = totalApproverExpenses[0]?.totalAmount || 0;
+        console.log(`💰 Total L1/L2/L3 approver amount: ₹${approverTotalAmount.toLocaleString()}`);
+
+        dashboardData.topCategories = topCategories.map(category => ({
+          name: category._id,
+          amount: category.totalAmount,
+          count: category.count,
+          percentage: approverTotalAmount > 0 ? Math.round((category.totalAmount / approverTotalAmount) * 100) : 0
+        }));
+
+        console.log(`✅ Created ${dashboardData.topCategories.length} top categories for L1/L2/L3 approver`);
+      }
+
+      // If L4 approver, get system-wide statistics (L3 approver now gets approval-based data above)
+      if (userRole === 'l4_approver') {
+        console.log('🔍 Setting up dashboard for L4 Approver - System-wide stats');
+        
+        const systemStats = await getSystemStatistics();
+        dashboardData.systemStats = systemStats;
+
+        // Calculate system-wide budget utilization for L4 approver
+        console.log('🔍 Calculating system-wide budget utilization for L4 approver...');
+        
+        // Get all sites with their budgets
+        const allSites = await Site.find({ isActive: true });
+        console.log(`📊 Found ${allSites.length} active sites for budget calculation`);
+        
+        let totalSystemBudget = 0;
+        let totalSystemSpent = 0;
+        
+        // Calculate total budget and spent amount across all sites
+        for (const site of allSites) {
+          const siteMonthlyBudget = site.budget?.monthly || 0;
+          totalSystemBudget += siteMonthlyBudget;
+          
+          // Get current month expenses for this site
+          const siteExpenses = await Expense.aggregate([
+            {
+              $match: {
+                site: site._id,
+                isActive: true,
+                isDeleted: false,
+                expenseDate: { $gte: currentMonth, $lt: nextMonth }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalSpent: { $sum: '$amount' }
+              }
+            }
+          ]);
+          
+          const siteSpent = siteExpenses[0]?.totalSpent || 0;
+          totalSystemSpent += siteSpent;
+          
+          console.log(`📊 Site ${site.name}: Budget ₹${siteMonthlyBudget.toLocaleString()}, Spent ₹${siteSpent.toLocaleString()}`);
+        }
+        
+        const systemUtilization = totalSystemBudget > 0 ? Math.round((totalSystemSpent / totalSystemBudget) * 100) : 0;
+        const systemRemainingBudget = Math.max(0, totalSystemBudget - totalSystemSpent);
+        
+        console.log('📊 System-wide budget calculation for L4 approver:', {
+          totalSystemBudget: totalSystemBudget.toLocaleString(),
+          totalSystemSpent: totalSystemSpent.toLocaleString(),
+          systemUtilization: systemUtilization + '%',
+          systemRemainingBudget: systemRemainingBudget.toLocaleString()
+        });
+        
+        // Add budget utilization data for L4 approver
+        dashboardData.budgetUtilization = systemUtilization;
+        dashboardData.siteBudget = {
+          monthly: totalSystemBudget,
+          used: totalSystemSpent,
+          remaining: systemRemainingBudget,
+          utilization: systemUtilization
+        };
+
+        // Budget alerts
+        const budgetAlerts = await Site.getSitesWithBudgetAlerts();
+        dashboardData.budgetAlerts = budgetAlerts;
+
+        // Recent activity
+        const recentActivity = await getRecentActivity();
+        dashboardData.recentActivity = recentActivity;
+
+        // For approvers, use the general recent activity
+        dashboardData.recentActivities = recentActivity.map(activity => ({
+          id: activity.expense.id,
+          type: activity.type,
+          title: `${activity.expense.title} ${activity.expense.status}`,
+          description: `${activity.site?.name || 'Unknown Site'} - ₹${activity.expense.amount.toLocaleString()}`,
+          time: getTimeAgo(activity.timestamp),
+          status: activity.expense.status
+        }));
+
+        // Top categories for approvers (system-wide or site-specific)
+        let matchFilter = { isActive: true, isDeleted: false };
+        
+        if (userRole !== 'l3_approver' && userRole !== 'l4_approver') {
+          matchFilter.site = req.user.site?._id;
+        }
+
+        const topCategories = await Expense.aggregate([
+          { $match: matchFilter },
+          {
+            $group: {
+              _id: '$category',
+              totalAmount: { $sum: '$amount' },
+              count: { $sum: 1 }
+            }
+          },
+          {
+            $sort: { totalAmount: -1 }
+          },
+          {
+            $limit: 5
+          }
+        ]);
+
+        // Calculate percentages
+        const totalExpenses = await Expense.aggregate([
+          { $match: matchFilter },
         {
           $group: {
             _id: null,

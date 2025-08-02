@@ -7,8 +7,10 @@ import WarningIcon from '@mui/icons-material/Warning';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { siteAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const CreateSite = () => {
+  const { darkMode } = useTheme();
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '', // Site Name
@@ -92,7 +94,7 @@ const CreateSite = () => {
   return (
     <Box sx={{ 
       minHeight: '100vh', 
-      background: 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
+      background: darkMode ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)' : 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
       p: 4,
       position: 'relative',
       overflow: 'hidden'
@@ -104,7 +106,9 @@ const CreateSite = () => {
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.05"%3E%3Ccircle cx="30" cy="30" r="2"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+        background: darkMode 
+          ? 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.01"%3E%3Ccircle cx="30" cy="30" r="2"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")'
+          : 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.05"%3E%3Ccircle cx="30" cy="30" r="2"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
         animation: 'float 20s ease-in-out infinite',
         '@keyframes float': {
           '0%, 100%': { transform: 'translateY(0px)' },
@@ -124,16 +128,16 @@ const CreateSite = () => {
                 <Paper elevation={24} sx={{ 
                   p: 4, 
                   borderRadius: 4, 
-                  background: 'rgba(255,255,255,0.95)',
+                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
                   backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: darkMode ? '1px solid #333333' : '1px solid rgba(255,255,255,0.2)',
                   boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                    <Avatar sx={{ bgcolor: '#667eea', mr: 2, width: 56, height: 56 }}>
+                    <Avatar sx={{ bgcolor: darkMode ? '#4fc3f7' : '#667eea', mr: 2, width: 56, height: 56 }}>
                       <BusinessIcon fontSize="large" />
                     </Avatar>
-                    <Typography variant="h5" fontWeight={700} color="#667eea">
+                    <Typography variant="h5" fontWeight={700} color={darkMode ? '#4fc3f7' : '#667eea'}>
                       Site Information
                     </Typography>
                   </Box>
@@ -149,9 +153,27 @@ const CreateSite = () => {
                           onChange={(e) => setFormData({...formData, name: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -164,9 +186,27 @@ const CreateSite = () => {
                           onChange={(e) => setFormData({...formData, code: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -181,9 +221,27 @@ const CreateSite = () => {
                           onChange={(e) => setFormData({...formData, address: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -196,9 +254,27 @@ const CreateSite = () => {
                           onChange={(e) => setFormData({...formData, city: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -211,9 +287,27 @@ const CreateSite = () => {
                           onChange={(e) => setFormData({...formData, state: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -226,9 +320,27 @@ const CreateSite = () => {
                           onChange={(e) => setFormData({...formData, pincode: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -241,9 +353,27 @@ const CreateSite = () => {
                           onChange={(e) => setFormData({...formData, contactPerson: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -256,9 +386,27 @@ const CreateSite = () => {
                           onChange={(e) => setFormData({...formData, phone: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -272,9 +420,27 @@ const CreateSite = () => {
                           onChange={(e) => setFormData({...formData, email: e.target.value})}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -300,13 +466,31 @@ const CreateSite = () => {
                           value={formData.monthlyBudget}
                           onChange={(e) => setFormData({...formData, monthlyBudget: e.target.value})}
                           InputProps={{
-                            startAdornment: <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>₹</Typography>
+                            startAdornment: <Typography variant="body2" color={darkMode ? '#b0b0b0' : 'text.secondary'} sx={{ mr: 1 }}>₹</Typography>
                           }}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
@@ -319,24 +503,71 @@ const CreateSite = () => {
                           value={formData.yearlyBudget}
                           onChange={(e) => setFormData({...formData, yearlyBudget: e.target.value})}
                           InputProps={{
-                            startAdornment: <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>₹</Typography>
+                            startAdornment: <Typography variant="body2" color={darkMode ? '#b0b0b0' : 'text.secondary'} sx={{ mr: 1 }}>₹</Typography>
                           }}
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
                           }}
                         />
                       </Grid>
 
                       <Grid item xs={12} sm={6}>
                         <FormControl fullWidth>
-                          <InputLabel>Budget Alert Threshold</InputLabel>
+                          <InputLabel sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>Budget Alert Threshold</InputLabel>
                           <Select
                             value={formData.budgetAlertThreshold}
                             label="Budget Alert Threshold"
                             onChange={(e) => setFormData({...formData, budgetAlertThreshold: e.target.value})}
+                            sx={{
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                              '& .MuiSelect-icon': {
+                                color: darkMode ? '#b0b0b0' : '#666666',
+                              },
+                            }}
+                            MenuProps={{
+                              PaperProps: {
+                                sx: {
+                                  bgcolor: darkMode ? '#2a2a2a' : '#ffffff',
+                                  '& .MuiMenuItem-root': {
+                                    color: darkMode ? '#e0e0e0' : '#333333',
+                                    '&:hover': {
+                                      bgcolor: darkMode ? '#333333' : '#f5f5f5',
+                                    },
+                                  },
+                                },
+                              },
+                            }}
                           >
                             <MenuItem value={70}>70% - Early Warning</MenuItem>
                             <MenuItem value={80}>80% - Standard Alert</MenuItem>
@@ -355,23 +586,44 @@ const CreateSite = () => {
                           value={formData.vehicleKmLimit}
                           onChange={(e) => setFormData({...formData, vehicleKmLimit: e.target.value})}
                           InputProps={{
-                            endAdornment: <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>KM</Typography>
+                            endAdornment: <Typography variant="body2" color={darkMode ? '#b0b0b0' : 'text.secondary'} sx={{ ml: 1 }}>KM</Typography>
                           }}
                           helperText="Monthly vehicle kilometer limit for this site"
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                            }
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                              '& fieldset': {
+                                borderColor: darkMode ? '#333333' : '#e0e0e0',
+                              },
+                              '&:hover fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              },
+                              '&.Mui-focused fieldset': { 
+                                borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                              }
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                              '&.Mui-focused': {
+                                color: darkMode ? '#4fc3f7' : '#667eea',
+                              },
+                            },
+                            '& .MuiInputBase-input': {
+                              color: darkMode ? '#e0e0e0' : '#333333',
+                            },
+                            '& .MuiFormHelperText-root': {
+                              color: darkMode ? '#b0b0b0' : '#666666',
+                            },
                           }}
                         />
                       </Grid>
 
                       <Grid item xs={12}>
-                        <Typography variant="h6" fontWeight={600} color="#667eea" gutterBottom>
+                        <Typography variant="h6" fontWeight={600} color={darkMode ? '#4fc3f7' : '#667eea'} gutterBottom>
                           Category-wise Budget Allocation
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        <Typography variant="body2" color={darkMode ? '#b0b0b0' : 'text.secondary'} sx={{ mb: 2 }}>
                           Set individual budgets for each expense category
                         </Typography>
                       </Grid>
@@ -386,13 +638,31 @@ const CreateSite = () => {
                             value={category.budget}
                             onChange={(e) => handleCategoryBudgetChange(index, 'budget', e.target.value)}
                             InputProps={{
-                              startAdornment: <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>₹</Typography>
+                              startAdornment: <Typography variant="body2" color={darkMode ? '#b0b0b0' : 'text.secondary'} sx={{ mr: 1 }}>₹</Typography>
                             }}
                             sx={{
                               '& .MuiOutlinedInput-root': {
-                                '&:hover fieldset': { borderColor: '#667eea' },
-                                '&.Mui-focused fieldset': { borderColor: '#667eea' }
-                              }
+                                backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                                color: darkMode ? '#e0e0e0' : '#333333',
+                                '& fieldset': {
+                                  borderColor: darkMode ? '#333333' : '#e0e0e0',
+                                },
+                                '&:hover fieldset': { 
+                                  borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                                },
+                                '&.Mui-focused fieldset': { 
+                                  borderColor: darkMode ? '#4fc3f7' : '#667eea' 
+                                }
+                              },
+                              '& .MuiInputLabel-root': {
+                                color: darkMode ? '#b0b0b0' : '#666666',
+                                '&.Mui-focused': {
+                                  color: darkMode ? '#4fc3f7' : '#667eea',
+                                },
+                              },
+                              '& .MuiInputBase-input': {
+                                color: darkMode ? '#e0e0e0' : '#333333',
+                              },
                             }}
                           />
                         </Grid>
@@ -401,20 +671,20 @@ const CreateSite = () => {
                       <Grid item xs={12}>
                         <Box sx={{ 
                           p: 2, 
-                          bgcolor: 'rgba(102, 126, 234, 0.1)', 
+                          bgcolor: darkMode ? 'rgba(79, 195, 247, 0.1)' : 'rgba(102, 126, 234, 0.1)', 
                           borderRadius: 2, 
-                          border: '1px solid rgba(102, 126, 234, 0.2)' 
+                          border: darkMode ? '1px solid rgba(79, 195, 247, 0.2)' : '1px solid rgba(102, 126, 234, 0.2)' 
                         }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <AttachMoneyIcon sx={{ color: '#667eea', mr: 1 }} />
-                            <Typography variant="h6" fontWeight={600} color="#667eea">
+                            <AttachMoneyIcon sx={{ color: darkMode ? '#4fc3f7' : '#667eea', mr: 1 }} />
+                            <Typography variant="h6" fontWeight={600} color={darkMode ? '#4fc3f7' : '#667eea'}>
                               Budget Summary
                             </Typography>
                           </Box>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" color={darkMode ? '#b0b0b0' : 'text.secondary'}>
                             Total Allocated Budget: ₹{categoryBudgets.reduce((sum, cat) => sum + (parseFloat(cat.budget) || 0), 0).toLocaleString()}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" color={darkMode ? '#b0b0b0' : 'text.secondary'}>
                             Alert Threshold: {formData.budgetAlertThreshold}% of budget utilization
                           </Typography>
                         </Box>
@@ -430,17 +700,17 @@ const CreateSite = () => {
                           startIcon={<AddIcon />}
                           disabled={loading}
                           sx={{
-                            background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
+                            background: darkMode ? 'linear-gradient(45deg, #4fc3f7 30%, #29b6f6 90%)' : 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
                             borderRadius: 3,
                             py: 1.5,
                             fontSize: '1.1rem',
                             fontWeight: 700,
                             textTransform: 'none',
-                            boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+                            boxShadow: darkMode ? '0 8px 32px rgba(79, 195, 247, 0.3)' : '0 8px 32px rgba(102, 126, 234, 0.3)',
                             transition: 'all 0.3s ease',
                             '&:hover': {
                               transform: 'translateY(-2px)',
-                              boxShadow: '0 12px 40px rgba(102, 126, 234, 0.4)'
+                              boxShadow: darkMode ? '0 12px 40px rgba(79, 195, 247, 0.4)' : '0 12px 40px rgba(102, 126, 234, 0.4)'
                             }
                           }}
                         >

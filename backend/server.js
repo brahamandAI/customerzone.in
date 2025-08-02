@@ -167,6 +167,12 @@ io.on('connection', (socket) => {
     logger.info(`User ${socket.id} joined role room: ${userRole}`);
   });
   
+  // Join user to their specific user room
+  socket.on('join-user-room', (userId) => {
+    socket.join(`user-${userId}`);
+    logger.info(`User ${socket.id} joined user room: ${userId}`);
+  });
+  
   // Join user to site-based room
   socket.on('join-site-room', (siteId) => {
     socket.join(`site-${siteId}`);

@@ -11,11 +11,13 @@ import { GoogleLogin } from '@react-oauth/google';
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { authAPI } from '../services/api';
 
 const Login = () => {
   const navigate = useNavigate();
   const { login, getRoleDisplayName } = useAuth();
+  const { darkMode } = useTheme();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -148,7 +150,7 @@ const Login = () => {
       case 'l1_approver': return <SecurityIcon />;
       case 'l2_approver': return <BusinessIcon />;
       case 'l3_approver': return <AccountBalanceIcon />;
-      case 'l4_approver': return <VisibilityIcon />;
+      case 'l4_approver': return <SecurityIcon />;
       default: return <PersonIcon />;
     }
   };
@@ -158,7 +160,7 @@ const Login = () => {
       case 'l1_approver': return '#ff9800';
       case 'l2_approver': return '#9c27b0';
       case 'l3_approver': return '#4caf50';
-      case 'l4_approver': return '#2196f3';
+      case 'l4_approver': return '#ff6b35';
       default: return '#607d8b';
     }
   };
@@ -260,9 +262,9 @@ const Login = () => {
             <Paper elevation={24} sx={{ 
               flex: 1,
               p: 5, 
-              background: 'rgba(255,255,255,0.95)',
+              background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
               backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255,255,255,0.3)',
+              border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.3)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
@@ -296,11 +298,25 @@ const Login = () => {
                     onChange={handleInputChange('email')}
                     error={!!errors.email}
                     helperText={errors.email}
+                    FormHelperTextProps={{
+                      sx: { color: errors.email ? '#f44336' : (darkMode ? '#b0b0b0' : '#666666') }
+                    }}
                     InputProps={{
                       sx: { 
                         borderRadius: 3,
+                        backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                        color: darkMode ? '#ffffff' : '#333333',
                         '&:hover fieldset': { borderColor: '#008080' },
-                        '&.Mui-focused fieldset': { borderColor: '#008080' }
+                        '&.Mui-focused fieldset': { borderColor: '#008080' },
+                        '& .MuiInputBase-input': {
+                          color: darkMode ? '#ffffff' : '#333333',
+                        },
+                        '& .MuiInputLabel-root': {
+                          color: darkMode ? '#b0b0b0' : '#666666',
+                        },
+                        '& .MuiInputLabel-root.Mui-focused': {
+                          color: '#008080',
+                        }
                       }
                     }}
                   />
@@ -313,11 +329,25 @@ const Login = () => {
                     onChange={handleInputChange('password')}
                     error={!!errors.password}
                     helperText={errors.password}
+                    FormHelperTextProps={{
+                      sx: { color: errors.password ? '#f44336' : (darkMode ? '#b0b0b0' : '#666666') }
+                    }}
                     InputProps={{
                       sx: { 
                         borderRadius: 3,
+                        backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                        color: darkMode ? '#ffffff' : '#333333',
                         '&:hover fieldset': { borderColor: '#008080' },
-                        '&.Mui-focused fieldset': { borderColor: '#008080' }
+                        '&.Mui-focused fieldset': { borderColor: '#008080' },
+                        '& .MuiInputBase-input': {
+                          color: darkMode ? '#ffffff' : '#333333',
+                        },
+                        '& .MuiInputLabel-root': {
+                          color: darkMode ? '#b0b0b0' : '#666666',
+                        },
+                        '& .MuiInputLabel-root.Mui-focused': {
+                          color: '#008080',
+                        }
                       },
                       endAdornment: (
                         <InputAdornment position="end">
@@ -334,15 +364,39 @@ const Login = () => {
                   />
                   
                   <FormControl fullWidth>
-                    <InputLabel>Select Your Role</InputLabel>
+                    <InputLabel sx={{ 
+                      color: darkMode ? '#b0b0b0' : '#666666',
+                      '&.Mui-focused': { color: '#008080' }
+                    }}>Select Your Role</InputLabel>
                     <Select
                       value={formData.role}
                       label="Select Your Role"
                       onChange={handleInputChange('role')}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: {
+                            backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                            '& .MuiMenuItem-root': {
+                              backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                              '&:hover': {
+                                backgroundColor: darkMode ? '#3a3a3a' : '#f5f5f5'
+                              }
+                            }
+                          }
+                        }
+                      }}
                       sx={{ 
                         borderRadius: 3,
+                        backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                        color: darkMode ? '#ffffff' : '#333333',
                         '&:hover fieldset': { borderColor: '#008080' },
-                        '&.Mui-focused fieldset': { borderColor: '#008080' }
+                        '&.Mui-focused fieldset': { borderColor: '#008080' },
+                        '& .MuiSelect-icon': {
+                          color: darkMode ? '#ffffff' : '#333333',
+                        },
+                        '& .MuiInputBase-input': {
+                          color: darkMode ? '#ffffff' : '#333333',
+                        }
                       }}
                       renderValue={(value) => (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -354,62 +408,77 @@ const Login = () => {
                           }}>
                             {getRoleIcon(value)}
                           </Avatar>
-                          <Typography>{getRoleDisplayName(value)}</Typography>
+                          <Typography sx={{ color: darkMode ? '#ffffff' : '#333333' }}>{getRoleDisplayName(value)}</Typography>
                         </Box>
                       )}
                     >
-                      <MenuItem value="submitter">
+                      <MenuItem value="submitter" sx={{ 
+                        backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                        '&:hover': { backgroundColor: darkMode ? '#3a3a3a' : '#f5f5f5' }
+                      }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Avatar sx={{ width: 32, height: 32, bgcolor: '#2196f3' }}>
                             <PersonIcon />
                           </Avatar>
                           <Box>
-                            <Typography variant="body1">Expense Submitter</Typography>
-                            <Typography variant="caption" color="text.secondary">Submit and track expenses</Typography>
+                            <Typography variant="body1" sx={{ color: darkMode ? '#ffffff' : '#333333' }}>Expense Submitter</Typography>
+                            <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>Submit and track expenses</Typography>
                           </Box>
                         </Box>
                       </MenuItem>
-                      <MenuItem value="l1_approver">
+                      <MenuItem value="l1_approver" sx={{ 
+                        backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                        '&:hover': { backgroundColor: darkMode ? '#3a3a3a' : '#f5f5f5' }
+                      }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Avatar sx={{ width: 32, height: 32, bgcolor: '#ff9800' }}>
                             <SecurityIcon />
                           </Avatar>
                           <Box>
-                            <Typography variant="body1">Level 1 Approver</Typography>
-                            <Typography variant="caption" color="text.secondary">Regional Manager</Typography>
+                            <Typography variant="body1" sx={{ color: darkMode ? '#ffffff' : '#333333' }}>Level 1 Approver</Typography>
+                            <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>Regional Manager</Typography>
                           </Box>
                         </Box>
                       </MenuItem>
-                      <MenuItem value="l2_approver">
+                      <MenuItem value="l2_approver" sx={{ 
+                        backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                        '&:hover': { backgroundColor: darkMode ? '#3a3a3a' : '#f5f5f5' }
+                      }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Avatar sx={{ width: 32, height: 32, bgcolor: '#9c27b0' }}>
                             <BusinessIcon />
                           </Avatar>
                           <Box>
-                            <Typography variant="body1">Level 2 Approver</Typography>
-                            <Typography variant="caption" color="text.secondary">Admin</Typography>
+                            <Typography variant="body1" sx={{ color: darkMode ? '#ffffff' : '#333333' }}>Level 2 Approver</Typography>
+                            <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>Admin</Typography>
                           </Box>
                         </Box>
                       </MenuItem>
-                      <MenuItem value="l3_approver">
+                                             <MenuItem value="l3_approver" sx={{ 
+                         backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                         '&:hover': { backgroundColor: darkMode ? '#3a3a3a' : '#f5f5f5' }
+                       }}>
+                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                           <Avatar sx={{ width: 32, height: 32, bgcolor: '#4caf50' }}>
+                             <AccountBalanceIcon />
+                           </Avatar>
+                           <Box>
+                             <Typography variant="body1" sx={{ color: darkMode ? '#ffffff' : '#333333' }}>Finance</Typography>
+                             <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>Financial Approver</Typography>
+                           </Box>
+                         </Box>
+                       </MenuItem>
+                      <MenuItem value="l4_approver" sx={{ 
+                        backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                        '&:hover': { backgroundColor: darkMode ? '#3a3a3a' : '#f5f5f5' }
+                      }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Avatar sx={{ width: 32, height: 32, bgcolor: '#4caf50' }}>
-                            <AccountBalanceIcon />
+                          <Avatar sx={{ width: 32, height: 32, bgcolor: '#ff6b35' }}>
+                            <SecurityIcon />
                           </Avatar>
                           <Box>
-                            <Typography variant="body1">Level 3 Approver</Typography>
-                            <Typography variant="caption" color="text.secondary">Finance</Typography>
-                          </Box>
-                        </Box>
-                      </MenuItem>
-                      <MenuItem value="l4_approver">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Avatar sx={{ width: 32, height: 32, bgcolor: '#2196f3' }}>
-                            <VisibilityIcon />
-                          </Avatar>
-                          <Box>
-                            <Typography variant="body1">Level 4 Approver</Typography>
-                            <Typography variant="caption" color="text.secondary">Reports Only</Typography>
+                            <Typography variant="body1" sx={{ color: darkMode ? '#ffffff' : '#333333' }}>Super Admin</Typography>
+                            <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>Full Access</Typography>
                           </Box>
                         </Box>
                       </MenuItem>
@@ -426,7 +495,7 @@ const Login = () => {
                           sx={{ color: '#008080', '&.Mui-checked': { color: '#008080' } }}
                         />
                       }
-                      label="Remember me"
+                      label={<Typography sx={{ color: darkMode ? '#ffffff' : '#333333' }}>Remember me</Typography>}
                     />
                     <Button
                       variant="text"
@@ -472,7 +541,7 @@ const Login = () => {
                   </Button>
 
                   <Divider sx={{ my: 3 }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
                       OR
                     </Typography>
                   </Divider>

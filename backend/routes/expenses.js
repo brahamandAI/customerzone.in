@@ -557,6 +557,21 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
 
     await approvalHistoryRecord.save();
 
+    // Add approval history entry to the expense document
+    const approvalHistoryEntry = {
+      approver: approverId,
+      action: action === 'approve' ? 'approved' : action === 'payment' ? 'payment_processed' : 'rejected',
+      date: new Date(),
+      comments: comments || '',
+      level: typeof level === 'string' ? parseInt(level.replace('L', '')) : parseInt(level),
+      modifiedAmount: modifiedAmount ? parseFloat(modifiedAmount) : undefined,
+      modificationReason,
+      paymentAmount: paymentAmount ? parseFloat(paymentAmount) : undefined,
+      paymentDate: paymentDate ? new Date(paymentDate) : undefined
+    };
+
+    console.log('➕ Adding approval history entry to expense:', approvalHistoryEntry);
+
     // Update expense status and other fields
     const levelNum = typeof level === 'string' ? parseInt(level.replace('L', '')) : parseInt(level);
     
@@ -566,7 +581,8 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
               levelNum === 1 ? 'approved_l1' :
               levelNum === 2 ? 'approved_l2' :
               levelNum === 3 ? 'approved_l3' : 'submitted',
-      currentApprovalLevel: action === 'reject' ? expense.currentApprovalLevel : levelNum
+      currentApprovalLevel: action === 'reject' ? expense.currentApprovalLevel : levelNum,
+      $push: { approvalHistory: approvalHistoryEntry }
     };
 
     // Add modified amount if provided
@@ -636,6 +652,9 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
     // Get Socket.IO instance
     const io = req.app.get('io');
 
+    // Get user role for socket notifications
+    const userRole = req.user.role;
+
     // Prepare notification data
     const notificationData = {
       expenseId: updatedExpense._id,
@@ -675,34 +694,42 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
       // Always emit to the specific user's room
       if (approverId) {
         const userRoom = `user-${approverId}`;
-        console.log('Emitting to specific approver:', userRoom);
+        console.log('📡 Emitting to specific approver room:', userRoom);
         io.to(userRoom).emit('expense-updated', socketData);
+        console.log('✅ Emitted to user room:', userRoom);
       }
 
       // Emit to appropriate role rooms
       if (levelNum === 1) {
-        console.log('L1 Approval - Emitting to rooms:', { l1Room, l2Room });
+        console.log('📡 L1 Approval - Emitting to rooms:', { l1Room, l2Room });
         // Notify L1 approvers about their approval
         io.to(l1Room).emit('expense-updated', socketData);
+        console.log('✅ Emitted to L1 room:', l1Room);
         // Notify L2 approvers about pending approval
         io.to(l2Room).emit('expense_approved_l1', socketData);
+        console.log('✅ Emitted to L2 room:', l2Room);
       } else if (levelNum === 2) {
-        console.log('L2 Approval - Emitting to rooms:', { l2Room, l3Room });
+        console.log('📡 L2 Approval - Emitting to rooms:', { l2Room, l3Room });
         // Notify L2 approvers about their approval
         io.to(l2Room).emit('expense-updated', socketData);
+        console.log('✅ Emitted to L2 room:', l2Room);
         // Notify L3 approvers about pending approval
         io.to(l3Room).emit('expense_approved_l2', socketData);
+        console.log('✅ Emitted to L3 room:', l3Room);
       } else if (levelNum === 3) {
-        console.log('L3 Approval - Emitting to room:', l3Room);
+        console.log('📡 L3 Approval - Emitting to room:', l3Room);
         // Notify L3 approvers about final approval
         io.to(l3Room).emit('expense-updated', socketData);
+        console.log('✅ Emitted to L3 room:', l3Room);
         // Notify submitter
         io.to(`user-${updatedExpense.submittedBy._id}`).emit('expense_approved_final', socketData);
+        console.log('✅ Emitted to submitter:', `user-${updatedExpense.submittedBy._id}`);
       }
 
       // Broadcast to all connected clients that need to update their dashboards
-      console.log('Broadcasting expense update to all relevant rooms');
+      console.log('📡 Broadcasting expense update to all relevant rooms');
       io.emit('dashboard-update', socketData);
+      console.log('✅ Broadcasted dashboard-update event');
     } else if (action === 'payment') {
       // Handle payment processing
       console.log('Emitting payment notification for L3:', levelNum);

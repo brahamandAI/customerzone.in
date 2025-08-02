@@ -30,7 +30,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
     // Get user from token
     const user = await User.findById(decoded.id)
       .select('-password')
-      .populate('site', 'name code location vehicleKmLimit budget');
+      .populate('site', '_id name code location vehicleKmLimit budget');
 
     if (!user) {
       return res.status(401).json({
