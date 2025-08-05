@@ -190,6 +190,76 @@ router.get('/all', protect, authorize('l3_approver', 'finance'), async (req, res
   }
 });
 
+
+
+// Delete user (Admin only)
+router.delete('/:userId', protect, authorize('l3_approver', 'finance'), async (req, res) => {
+  try {
+    console.log('🗑️ DELETE /users/:userId - Request received');
+    console.log('User ID to delete:', req.params.userId);
+    console.log('Current user:', req.user.email, 'Role:', req.user.role);
+    
+    const { userId } = req.params;
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    console.log('User to delete found:', user ? user.email : 'Not found');
+
+    if (!user) {
+      console.log('❌ User not found');
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Prevent deleting own account
+    if (req.user._id.toString() === userId) {
+      console.log('❌ Attempt to delete own account');
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own account'
+      });
+    }
+
+    // Check if user has any pending expenses
+    const Expense = require('../models/Expense');
+    const pendingExpenses = await Expense.find({
+      submittedBy: userId,
+      status: { $in: ['pending', 'l1_approved', 'l2_approved'] }
+    });
+
+    console.log('Pending expenses found:', pendingExpenses.length);
+
+    if (pendingExpenses.length > 0) {
+      console.log('❌ Cannot delete user with pending expenses');
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete user with pending expenses. Please process all pending expenses first.'
+      });
+    }
+
+    // Soft delete by setting isActive to false
+    user.isActive = false;
+    await user.save();
+
+    console.log(`✅ User ${user.email} deleted successfully by ${req.user.email}`);
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
 // Get user by ID
 router.get('/:userId', protect, async (req, res) => {
   try {

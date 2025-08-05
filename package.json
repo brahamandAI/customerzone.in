@@ -25,7 +25,8 @@
     "pm2:monit": "pm2 monit",
     "pm2:status": "pm2 status",
     "pm2:start-backend": "pm2 start ecosystem.config.js --only expense-backend",
-    "pm2:start-frontend": "pm2 start ecosystem.config.js --only expense-frontend"
+    "pm2:start-frontend": "pm2 start ecosystem.config.js --only expense-frontend",
+    "test-notifications": "node test-notification-system.js"
   },
   "keywords": [
     "expense",
@@ -53,11 +54,13 @@
   },
   "homepage": "https://github.com/your-username/rakshak-expense-management#readme",
   "dependencies": {
-    "axios": "^1.10.0",
+    "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
     "colors": "^1.4.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
     "express": "^5.1.0",
-    "mongoose": "^8.16.1"
+    "mongoose": "^8.16.1",
+    "nodemailer": "^7.0.5"
   }
 }

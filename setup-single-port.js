@@ -25,6 +25,10 @@ SMTP_PORT=587
 SMTP_EMAIL=your_email@gmail.com
 SMTP_PASSWORD=your_app_password
 
+# SMS Configuration (Fast2SMS)
+FAST2SMS_API_KEY=your_fast2sms_api_key_here
+FAST2SMS_SENDER_ID=RAKSHAK
+
 # File Upload Configuration
 MAX_FILE_SIZE=10485760
 FILE_UPLOAD_PATH=./uploads

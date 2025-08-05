@@ -10,6 +10,8 @@ const ApprovalHistory = require('../models/ApprovalHistory');
 const PendingApprover = require('../models/PendingApprovers');
 const Comment = require('../models/Comments');
 const fileStorage = require('../utils/fileStorage');
+const emailService = require('../services/emailService');
+const smsService = require('../services/smsService');
 
 // Function to cleanup expired reservations
 const cleanupExpiredReservations = async () => {
@@ -327,12 +329,35 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
     const notificationData = {
       expenseId: newExpense._id,
       expenseNumber: newExpense.expenseNumber,
+      title: newExpense.title,
       submitter: populatedExpense.submittedBy.name,
+      submitterEmail: populatedExpense.submittedBy.email,
       site: populatedExpense.site.name,
+      department: newExpense.department,
       amount: newExpense.amount,
       category: newExpense.category,
       timestamp: new Date()
     };
+
+    // Send email and SMS notifications to L1 approvers
+    console.log('📧 Sending notifications to L1 approvers...');
+    for (const approver of l1Approvers) {
+      try {
+        // Send email notification if enabled
+        if (approver.preferences?.notifications?.email) {
+          console.log(`📧 Sending email to: ${approver.email}`);
+          await emailService.sendExpenseNotification(approver, notificationData);
+        }
+
+        // Send SMS notification if enabled
+        if (approver.preferences?.notifications?.sms && approver.phone) {
+          console.log(`📱 Sending SMS to: ${approver.phone}`);
+          await smsService.sendExpenseNotification(approver.phone, notificationData);
+        }
+      } catch (error) {
+        console.error(`❌ Failed to send notification to ${approver.email}:`, error);
+      }
+    }
 
     // Emit new expense notification to all approvers
     io.to('role-l1_approver')
@@ -737,6 +762,38 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
       } catch (error) {
         console.error('❌ Error updating site statistics:', error);
       }
+    }
+
+    // Send email and SMS notifications to submitter about status update
+    console.log('📧 Sending status update notifications to submitter...');
+    try {
+      const submitter = updatedExpense.submittedBy;
+      const approverUser = await User.findById(approverId);
+      const approverName = approverUser ? approverUser.name : 'System';
+      
+      // Prepare expense data for notifications
+      const expenseNotificationData = {
+        expenseNumber: updatedExpense.expenseNumber,
+        title: updatedExpense.title,
+        amount: modifiedAmount || updatedExpense.amount,
+        category: updatedExpense.category,
+        site: updatedExpense.site.name,
+        submitterEmail: submitter.email
+      };
+
+      // Send email notification to submitter if enabled
+      if (submitter.preferences?.notifications?.email) {
+        console.log(`📧 Sending status update email to submitter: ${submitter.email}`);
+        await emailService.sendExpenseStatusUpdate(expenseNotificationData, action, approverName);
+      }
+
+      // Send SMS notification to submitter if enabled
+      if (submitter.preferences?.notifications?.sms && submitter.phone) {
+        console.log(`📱 Sending status update SMS to submitter: ${submitter.phone}`);
+        await smsService.sendExpenseStatusUpdate(submitter.phone, expenseNotificationData, action, approverName);
+      }
+    } catch (error) {
+      console.error('❌ Failed to send status update notifications:', error);
     }
 
     // Get Socket.IO instance

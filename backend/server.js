@@ -213,6 +213,7 @@ const reportRoutes = require('./routes/reports');
 const notificationRoutes = require('./routes/notifications');
 const categoryRoutes = require('./routes/categories');
 const paymentRoutes = require('./routes/payments');
+const testNotificationRoutes = require('./routes/test-notifications');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -224,6 +225,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/test-notifications', testNotificationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

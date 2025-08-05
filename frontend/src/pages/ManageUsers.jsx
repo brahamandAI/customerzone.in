@@ -89,11 +89,31 @@ const ManageUsers = () => {
 
   const handleDelete = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
+    
     try {
-      await userAPI.deleteUser(userId);
-      setUsers(users.filter(u => u._id !== userId));
+      console.log('🗑️ Attempting to delete user:', userId);
+      const response = await userAPI.deleteUser(userId);
+      console.log('✅ Delete response:', response);
+      
+      // Update the local state to remove the deleted user
+      setUsers(prevUsers => prevUsers.filter(u => u._id !== userId));
+      setFilteredUsers(prevFiltered => prevFiltered.filter(u => u._id !== userId));
+      
+      // Show success message
+      alert('User deleted successfully');
+      
     } catch (err) {
-      alert('Failed to delete user');
+      console.error('❌ Error deleting user:', err);
+      
+      // Show more specific error message
+      let errorMessage = 'Failed to delete user';
+      if (err.response && err.response.data && err.response.data.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      alert(`Error: ${errorMessage}`);
     }
   };
 
