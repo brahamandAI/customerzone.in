@@ -31,6 +31,22 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.getProfile();
       if (response.data.success) {
         const userData = response.data.user;
+        
+        // Debug logging
+        console.log('🔍 DEBUG: Backend user data:', userData);
+        console.log('🔍 DEBUG: Backend profile picture:', userData.profilePicture);
+        
+        // Only preserve profile picture from localStorage if backend doesn't have one
+        const storedUserData = JSON.parse(storedUser);
+        console.log('🔍 DEBUG: Stored user data:', storedUserData);
+        console.log('🔍 DEBUG: Stored profile picture:', storedUserData.profilePicture);
+        
+        if (storedUserData.profilePicture && !userData.profilePicture) {
+          userData.profilePicture = storedUserData.profilePicture;
+          console.log('🔍 DEBUG: Preserved profile picture from localStorage');
+        }
+        
+        console.log('🔍 DEBUG: Final user data:', userData);
         console.log('Token validated, user data:', userData);
         setUser(userData);
         setIsAuthenticated(true);
@@ -74,6 +90,15 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
   };
 
+  // Update user data (for profile picture updates)
+  const updateUser = (updatedUserData) => {
+    console.log('🔍 DEBUG: updateUser called with:', updatedUserData);
+    console.log('🔍 DEBUG: Profile picture in updateUser:', updatedUserData.profilePicture);
+    setUser(updatedUserData);
+    localStorage.setItem('user', JSON.stringify(updatedUserData));
+    console.log('🔍 DEBUG: User updated in context and localStorage');
+  };
+
   // Refresh token periodically
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -82,6 +107,12 @@ export const AuthProvider = ({ children }) => {
           const response = await authAPI.getProfile();
           if (response.data.success) {
             const userData = response.data.data;
+            
+            // Only preserve profile picture from current user state if backend doesn't have one
+            if (user.profilePicture && !userData.profilePicture) {
+              userData.profilePicture = user.profilePicture;
+            }
+            
             setUser(userData);
             localStorage.setItem('user', JSON.stringify(userData));
             console.log('Token refreshed successfully');
@@ -143,6 +174,7 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     login,
     logout,
+    updateUser,
     getUserRole,
     hasPermission,
     canApproveLevel,

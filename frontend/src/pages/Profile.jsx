@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, TextField, Button, Grid, Avatar, Fade, Zoom, Card, CardContent, IconButton, Chip } from '@mui/material';
+import React, { useState, useEffect, useRef } from 'react';
+import { Box, Typography, Paper, TextField, Button, Grid, Avatar, Fade, Zoom, Card, CardContent, IconButton, Chip, Badge } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -8,17 +8,22 @@ import EmailIcon from '@mui/icons-material/Email';
 import PhoneIcon from '@mui/icons-material/Phone';
 import BusinessIcon from '@mui/icons-material/Business';
 import SecurityIcon from '@mui/icons-material/Security';
+import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { dashboardAPI } from '../services/api';
 
 const Profile = () => {
-  const { user, getUserRole } = useAuth();
+  const { user, getUserRole, updateUser } = useAuth();
   const { darkMode } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userStats, setUserStats] = useState(null);
   const [statsError, setStatsError] = useState(null);
+  const [profilePhoto, setProfilePhoto] = useState(null);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState(null);
+  const [photoLoadError, setPhotoLoadError] = useState(false);
+  const fileInputRef = useRef(null);
   const [profileData, setProfileData] = useState({
     name: '',
     email: '',
@@ -31,6 +36,162 @@ const Profile = () => {
     accountNumber: '',
     ifscCode: ''
   });
+
+  // Save profile photo
+  const handleSavePhoto = async () => {
+    if (!profilePhoto) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('profilePhoto', profilePhoto);
+
+      // Upload to backend
+      const response = await fetch('http://localhost:5001/api/users/upload-profile-photo', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          // Don't set Content-Type - let browser set it automatically for FormData
+        },
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Update user context with new profile picture
+        const updatedUser = { ...user, profilePicture: result.profilePicture };
+        updateUser(updatedUser);
+        
+        // Also update the profile picture in the database via API
+        try {
+          const updateResponse = await fetch('http://localhost:5001/api/auth/profile-picture', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ profilePicture: result.profilePicture })
+          });
+          
+          const updateResult = await updateResponse.json();
+          if (updateResult.success) {
+            console.log('✅ DEBUG: Profile picture updated in database');
+          } else {
+            console.error('❌ DEBUG: Failed to update profile picture in database:', updateResult.message);
+          }
+        } catch (error) {
+          console.error('❌ DEBUG: Error updating profile picture in database:', error);
+        }
+        
+        // Clear the temporary photo state
+        setProfilePhoto(null);
+        setPhotoLoadError(false); // Reset error state
+        
+        alert('Profile photo updated successfully!');
+      } else {
+        alert(result.message || 'Failed to upload profile photo');
+      }
+      
+    } catch (error) {
+      console.error('Error uploading profile photo:', error);
+      alert('Failed to upload profile photo');
+    }
+  };
+
+  // Auto-save photo when selected
+  const handlePhotoUpload = async (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size should be less than 5MB');
+        return;
+      }
+
+      setProfilePhoto(file);
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setProfilePhotoUrl(e.target.result);
+      };
+      reader.readAsDataURL(file);
+
+      // Auto-save the photo
+      const formData = new FormData();
+      formData.append('profilePhoto', file);
+
+      console.log('🔍 DEBUG: Uploading file:', file.name, file.size, file.type);
+
+      try {
+        const response = await fetch('http://localhost:5001/api/users/upload-profile-photo', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            // Don't set Content-Type - let browser set it automatically for FormData
+          },
+          body: formData
+        });
+
+        console.log('🔍 DEBUG: Response status:', response.status);
+        console.log('🔍 DEBUG: Response headers:', response.headers);
+
+        const result = await response.json();
+        console.log('🔍 DEBUG: Response result:', result);
+
+        if (result.success) {
+          // Update user context with new profile picture
+          const updatedUser = { ...user, profilePicture: result.profilePicture };
+          updateUser(updatedUser);
+          
+          // Also update the profile picture in the database via API
+          try {
+            const updateResponse = await fetch('http://localhost:5001/api/auth/profile-picture', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify({ profilePicture: result.profilePicture })
+            });
+            
+            const updateResult = await updateResponse.json();
+            if (updateResult.success) {
+              console.log('✅ DEBUG: Profile picture updated in database');
+            } else {
+              console.error('❌ DEBUG: Failed to update profile picture in database:', updateResult.message);
+            }
+          } catch (error) {
+            console.error('❌ DEBUG: Error updating profile picture in database:', error);
+          }
+          
+          // Clear the temporary photo state
+          setProfilePhoto(null);
+          setPhotoLoadError(false); // Reset error state
+          
+          alert('Profile photo updated successfully!');
+        } else {
+          console.error('❌ DEBUG: Upload failed:', result.message);
+          alert(result.message || 'Failed to upload profile photo');
+        }
+        
+      } catch (error) {
+        console.error('❌ DEBUG: Network error:', error);
+        alert('Failed to upload profile photo');
+      }
+    }
+  };
+
+  // Handle photo upload click
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
 
   // Initialize profile data from user context and fetch user stats
   useEffect(() => {
@@ -225,9 +386,55 @@ const Profile = () => {
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Avatar sx={{ width: 80, height: 80, mr: 3, bgcolor: '#667eea', fontSize: '2rem' }}>
-                        {profileData.name.charAt(0)}
-                      </Avatar>
+                      <Box sx={{ position: 'relative', mr: 3 }}>
+                        <Badge
+                          overlap="circular"
+                          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                          badgeContent={
+                            <IconButton
+                              onClick={handlePhotoClick}
+                              sx={{
+                                bgcolor: '#667eea',
+                                color: 'white',
+                                width: 32,
+                                height: 32,
+                                '&:hover': { bgcolor: '#5a6fd8' }
+                              }}
+                            >
+                              <CameraAltIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          }
+                        >
+                          <Avatar 
+                            sx={{ 
+                              width: 80, 
+                              height: 80, 
+                              bgcolor: '#667eea', 
+                              fontSize: '2rem',
+                              cursor: 'pointer',
+                              '&:hover': { opacity: 0.8 }
+                            }}
+                            src={!photoLoadError && user?.profilePicture ? `http://localhost:5001/api/users/profile-photo/${user.profilePicture}` : profilePhotoUrl}
+                            onClick={handlePhotoClick}
+                            onError={(e) => {
+                              setPhotoLoadError(true);
+                            }}
+                            crossOrigin="anonymous"
+                          >
+                            {profileData.name.charAt(0)}
+                          </Avatar>
+                        </Badge>
+                        
+                        {/* Hidden file input */}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePhotoUpload}
+                          style={{ display: 'none' }}
+                        />
+                      </Box>
+                      
                       <Box>
                         <Typography variant="h4" fontWeight={700} color="#667eea">
                           {profileData.name}
@@ -236,6 +443,8 @@ const Profile = () => {
                           {profileData.role} • {profileData.department}
                         </Typography>
                         <Chip label={profileData.employeeId} color="primary" size="small" sx={{ mt: 1 }} />
+                        
+                        
                       </Box>
                     </Box>
                     <IconButton 

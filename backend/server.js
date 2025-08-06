@@ -9,7 +9,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const cookieParser = require('cookie-parser');
-const fileUpload = require('express-fileupload');
+// const fileUpload = require('express-fileupload'); // COMMENTED OUT - CONFLICTS WITH MULTER
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const winston = require('winston');
@@ -55,11 +55,13 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
+      imgSrc: ["'self'", "data:", "https:", "http://localhost:5001"],
       frameSrc: ["'self'", "http://localhost:3000", "http://localhost:5001"],
       frameAncestors: ["'self'", "http://localhost:3000"],
     },
   },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false
 }));
 
 app.use(compression());
@@ -103,19 +105,30 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Static file serving for profile photos
+app.use('/api/users/profile-photo', express.static(path.join(__dirname, 'uploads/profile-photos'), {
+  setHeaders: (res, path) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  }
+}));
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// File upload middleware
-app.use(fileUpload({
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
-  abortOnLimit: true,
-  responseOnLimit: 'File size limit exceeded',
-  useTempFiles: true,
-  tempFileDir: '/tmp/',
-  createParentPath: true
-}));
+// File upload middleware - COMMENTED OUT TO AVOID CONFLICT WITH MULTER
+// app.use(fileUpload({
+//   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
+//   abortOnLimit: true,
+//   responseOnLimit: 'File size limit exceeded',
+//   useTempFiles: true,
+//   tempFileDir: '/tmp/',
+//   createParentPath: true
+// }));
 
 // Logging middleware
 app.use(morgan('combined', {

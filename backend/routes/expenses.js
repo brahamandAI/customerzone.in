@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 const { protect, authorize } = require('../middleware/auth');
 const Expense = require('../models/Expense');
 const User = require('../models/User');
@@ -12,6 +13,44 @@ const Comment = require('../models/Comments');
 const fileStorage = require('../utils/fileStorage');
 const emailService = require('../services/emailService');
 const smsService = require('../services/smsService');
+
+// Configure multer for expense file uploads
+const expenseStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/expense-attachments';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'expense-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadExpenseFile = multer({
+  storage: expenseStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Allow common file types
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf', 'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images, PDFs, and Office documents are allowed.'), false);
+    }
+  }
+});
 
 // Function to cleanup expired reservations
 const cleanupExpiredReservations = async () => {
@@ -148,16 +187,16 @@ router.get('/next-number', protect, authorize('submitter', 'l1_approver', 'l2_ap
 });
 
 // File upload route
-router.post('/upload', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver'), async (req, res) => {
+router.post('/upload', protect, authorize('submitter', 'l1_approver', 'l2_approver', 'l3_approver'), uploadExpenseFile.single('file'), async (req, res) => {
   try {
-    if (!req.files || !req.files.file) {
+    if (!req.file) {
       return res.status(400).json({
         success: false,
         message: 'No file uploaded'
       });
     }
 
-    const file = req.files.file;
+    const file = req.file;
     
     // Validate file
     const validation = fileStorage.validateFile(file);
@@ -583,22 +622,24 @@ router.get('/:expenseId/attachments/:attachmentId/download', async (req, res) =>
       });
     }
 
-    // Use file storage utility to get file path
-    const filePath = path.join(__dirname, '..', 'uploads', attachment.path);
+    // Check if file exists directly using the full path
+    const filePath = attachment.path;
     
-    // Check if file exists using file storage
-    const fileInfo = fileStorage.getFileInfo(attachment.path);
-    if (!fileInfo.exists) {
+    if (!fs.existsSync(filePath)) {
+      console.error(`❌ File not found: ${filePath}`);
       return res.status(404).json({
         success: false,
         message: 'File not found on server'
       });
     }
 
+    // Get file stats
+    const stats = fs.statSync(filePath);
+
     // Set headers for file download and CORS
     res.setHeader('Content-Type', attachment.mimetype);
     res.setHeader('Content-Disposition', `inline; filename="${attachment.originalName}"`);
-    res.setHeader('Content-Length', fileInfo.size);
+    res.setHeader('Content-Length', stats.size);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');

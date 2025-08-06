@@ -503,7 +503,7 @@ const AdminPanel = () => {
                         <React.Fragment key={user._id || user.id || index}>
                         <ListItem sx={{ px: 0, py: 1 }}>
                           <ListItemIcon sx={{ minWidth: 40 }}>
-                            <Avatar sx={{ bgcolor: user.status === 'active' ? '#4caf50' : '#f44336', width: 32, height: 32 }}>
+                            <Avatar sx={{ bgcolor: (user.isActive !== false) ? '#4caf50' : '#f44336', width: 32, height: 32 }}>
                               <PeopleIcon />
                             </Avatar>
                           </ListItemIcon>
@@ -519,15 +519,15 @@ const AdminPanel = () => {
                                     {user.role} • {user.site?.name || user.site || 'No Site'}
                                 </Typography>
                                 <Typography variant="caption" display="block" color={darkMode ? '#b0b0b0' : 'text.secondary'}>
-                                    Last login: {user.lastLogin || 'Never'}
+                                    Last login: {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}
                                 </Typography>
                               </Box>
                             }
                           />
                           <Chip 
-                              label={user.status || 'unknown'} 
+                              label={(user.isActive !== false) ? 'active' : 'inactive'} 
                             size="small"
-                            color={user.status === 'active' ? 'success' : 'error'}
+                            color={(user.isActive !== false) ? 'success' : 'error'}
                           />
                         </ListItem>
                         {index < recentUsers.length - 1 && <Divider sx={{ borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)' }} />}

@@ -442,10 +442,9 @@ const Dashboard = () => {
   // Removed unused quickActions variable
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh', 
+    <Box sx={{
+      minHeight: '100vh',
       background: 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
-      p: 4,
       position: 'relative',
       overflow: 'hidden',
       '@keyframes spin': {
@@ -469,9 +468,9 @@ const Dashboard = () => {
       }} />
       
       <Fade in timeout={1000}>
-        <Box sx={{ position: 'relative', zIndex: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+        <Box sx={{ position: 'relative', zIndex: 1, p: 4 }} className="dashboard-container">
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mr: 2, mb: { xs: 1, md: 0 } }}>
               <img 
                 src="/rakshak-logo.png" 
                 alt="Rakshak Securitas Logo" 
@@ -481,10 +480,13 @@ const Dashboard = () => {
                 <DashboardIcon />
               </Avatar>
             </Box>
-            <Typography variant="h3" fontWeight={900} color="white" sx={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+            <Typography variant="h3" fontWeight={900} color="white" sx={{ 
+              textShadow: '2px 2px 4px rgba(0,0,0,0.3)',
+              fontSize: { xs: '1.5rem', sm: '2rem', md: '3rem' }
+            }}>
               {t('dashboard')}
             </Typography>
-            <Box sx={{ ml: 2, display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ ml: { xs: 0, md: 2 }, mt: { xs: 1, md: 0 }, display: 'flex', alignItems: 'center', width: { xs: '100%', md: 'auto' } }}>
               {dashboardLoading && (
                 <>
                   <Typography variant="body2" color="white" sx={{ mr: 1 }}>
@@ -505,9 +507,9 @@ const Dashboard = () => {
           </Box>
 
           {/* Key Metrics */}
-          <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid container spacing={3} sx={{ mb: 4 }} className="dashboard-stats-grid">
             {/* Total Amount Card - Different for L4 Approver */}
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={3}>
               <Zoom in style={{ transitionDelay: '200ms' }}>
                 <Paper elevation={16} sx={{ 
                   p: 3, 
@@ -516,7 +518,7 @@ const Dashboard = () => {
                   backdropFilter: 'blur(10px)',
                   border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
                   textAlign: 'center'
-                }}>
+                }} className="dashboard-card">
                   <Avatar sx={{ bgcolor: '#667eea', mx: 'auto', mb: 2 }}>
                     <CurrencyRupeeIcon />
                   </Avatar>
@@ -539,7 +541,7 @@ const Dashboard = () => {
             {/* Show approval cards for approvers, but different for L4 Approver */}
             {user?.role?.toLowerCase() !== 'submitter' && (
               <>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={3}>
               <Zoom in style={{ transitionDelay: '400ms' }}>
                 <Paper elevation={16} sx={{ 
                   p: 3, 
@@ -568,7 +570,7 @@ const Dashboard = () => {
               </Zoom>
             </Grid>
             
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={3}>
               <Zoom in style={{ transitionDelay: '600ms' }}>
                 <Paper elevation={16} sx={{ 
                   p: 3, 
@@ -602,7 +604,7 @@ const Dashboard = () => {
 
             {/* Payment Processed Card for Finance */}
             {user?.role?.toLowerCase() === 'finance' && (
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} sm={6} md={3}>
                 <Zoom in style={{ transitionDelay: '700ms' }}>
                   <Paper elevation={16} sx={{ 
                     p: 3, 
@@ -634,7 +636,7 @@ const Dashboard = () => {
             
             {/* Budget Utilization Card - Hide for Finance and Super Admin */}
             {user?.role?.toLowerCase() !== 'finance' && user?.role?.toLowerCase() !== 'l3_approver' && (
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} sm={6} md={3}>
                 <Zoom in style={{ transitionDelay: '800ms' }}>
                   <Paper elevation={16} sx={{ 
                     p: 3, 
@@ -666,7 +668,7 @@ const Dashboard = () => {
             {/* Additional Super Admin Cards - Hide for Finance */}
             {user?.role?.toLowerCase() === 'l3_approver' && (
               <>
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} sm={6} md={3}>
                   <Zoom in style={{ transitionDelay: '1000ms' }}>
                     <Paper elevation={16} sx={{ 
                       p: 3, 
@@ -695,7 +697,7 @@ const Dashboard = () => {
                   </Zoom>
                 </Grid>
 
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} sm={6} md={3}>
                   <Zoom in style={{ transitionDelay: '1200ms' }}>
                     <Paper elevation={16} sx={{ 
                       p: 3, 
@@ -724,7 +726,7 @@ const Dashboard = () => {
                   </Zoom>
                 </Grid>
 
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} sm={6} md={3}>
                   <Zoom in style={{ transitionDelay: '1400ms' }}>
                     <Paper elevation={16} sx={{ 
                       p: 3, 

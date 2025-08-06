@@ -22,6 +22,7 @@ import { SocketProvider } from './context/SocketContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import './App.css';
+import './responsive.css';
 import ManageUsers from './pages/ManageUsers';
 import EditUser from './pages/EditUser';
 

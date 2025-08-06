@@ -60,21 +60,16 @@ class FileStorage {
   // Save uploaded file
   async saveFile(file, fileType = 'expense') {
     try {
-      const fileInfo = this.generateFilePath(fileType, file.name);
-      
-      // Move file to destination
-      await file.mv(fileInfo.fullPath);
-      
-      // Get file stats
-      const stats = fs.statSync(fileInfo.fullPath);
+      // For multer, file is already saved, just return the info
+      const stats = fs.statSync(file.path);
       
       return {
         success: true,
         data: {
-          filename: fileInfo.filename,
-          originalName: fileInfo.originalName,
-          path: fileInfo.relativePath,
-          fullPath: fileInfo.fullPath,
+          filename: file.filename,
+          originalName: file.originalname,
+          path: file.path.replace(/\\/g, '/'), // Normalize path separators
+          fullPath: file.path,
           size: stats.size,
           mimetype: file.mimetype,
           uploadDate: new Date(),
@@ -160,7 +155,7 @@ class FileStorage {
     }
 
     // Check file name
-    if (!file.name || file.name.length === 0) {
+    if (!file.originalname || file.originalname.length === 0) {
       errors.push('File name is required');
     }
 

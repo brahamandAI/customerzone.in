@@ -4,6 +4,119 @@ const bcrypt = require('bcryptjs');
 const { protect, authorize } = require('../middleware/auth');
 const User = require('../models/User');
 const Site = require('../models/Site');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/profile-photos';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Check file type
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
+
+// Upload profile photo - MUST BE FIRST ROUTE TO AVOID CONFLICTS
+router.post('/upload-profile-photo', protect, upload.single('profilePhoto'), async (req, res) => {
+  try {
+    console.log('🔍 DEBUG: Upload endpoint hit');
+    console.log('DEBUG: Request headers:', req.headers);
+    console.log('DEBUG: Request body:', req.body);
+    console.log('DEBUG: Request file:', req.file);
+
+    if (!req.file) {
+      console.log('❌ DEBUG: No file uploaded');
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    console.log('✅ DEBUG: File received:', req.file.originalname);
+
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      console.log('❌ DEBUG: User not found');
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Delete old profile photo if exists and not default
+    if (user.profilePicture && user.profilePicture !== 'default-avatar.png') {
+      const oldPhotoPath = path.join('uploads/profile-photos', user.profilePicture);
+      if (fs.existsSync(oldPhotoPath)) {
+        fs.unlinkSync(oldPhotoPath);
+        console.log('🗑️ DEBUG: Old photo deleted:', user.profilePicture);
+      }
+    }
+
+    // Update user's profile picture
+    user.profilePicture = req.file.filename;
+    await user.save();
+
+    console.log('✅ DEBUG: Profile photo updated successfully:', req.file.filename);
+
+    res.json({
+      success: true,
+      message: 'Profile photo uploaded successfully',
+      profilePicture: req.file.filename
+    });
+
+  } catch (error) {
+    console.error('❌ DEBUG: Error uploading profile photo:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading profile photo',
+      error: error.message
+    });
+  }
+});
+
+// Get profile photo - MUST BE SECOND ROUTE TO AVOID CONFLICTS
+router.get('/profile-photo/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, '../uploads/profile-photos', filename);
+  
+  // Add comprehensive CORS headers
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    // Return 404 if file doesn't exist (frontend will show default avatar)
+    res.status(404).json({ message: 'Profile photo not found' });
+  }
+});
 
 // Create new user (Admin only)
 router.post('/create', protect, authorize('l3_approver', 'finance'), async (req, res) => {
@@ -239,15 +352,15 @@ router.delete('/:userId', protect, authorize('l3_approver', 'finance'), async (r
       });
     }
 
-    // Soft delete by setting isActive to false
-    user.isActive = false;
-    await user.save();
+    // HARD DELETE - Permanently remove user from database
+    console.log(`🗑️ Performing HARD DELETE for user: ${user.email}`);
+    await User.deleteOne({ _id: userId });
 
-    console.log(`✅ User ${user.email} deleted successfully by ${req.user.email}`);
+    console.log(`✅ User ${user.email} permanently deleted from database by ${req.user.email}`);
 
     res.json({
       success: true,
-      message: 'User deleted successfully'
+      message: 'User permanently deleted from database'
     });
 
   } catch (error) {

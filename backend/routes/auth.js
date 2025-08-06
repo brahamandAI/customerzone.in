@@ -229,6 +229,42 @@ router.post('/logout', protect, asyncHandler(async (req, res) => {
   });
 }));
 
+// @desc    Update user profile picture
+// @route   PUT /api/auth/profile-picture
+// @access  Private
+router.put('/profile-picture', protect, asyncHandler(async (req, res) => {
+  const { profilePicture } = req.body;
+
+  if (!profilePicture) {
+    return res.status(400).json({
+      success: false,
+      message: 'Profile picture filename is required'
+    });
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+
+  // Update profile picture
+  user.profilePicture = profilePicture;
+  await user.save();
+
+  const updatedUser = await User.findById(user._id)
+    .select('-password')
+    .populate('site', 'name code location.city');
+
+  res.json({
+    success: true,
+    message: 'Profile picture updated successfully',
+    user: updatedUser
+  });
+}));
+
 // @desc    Get current logged in user
 // @route   GET /api/auth/me
 // @access  Private
