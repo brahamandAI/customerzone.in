@@ -58,6 +58,8 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:", "http://localhost:5001"],
       frameSrc: ["'self'", "http://localhost:3000", "http://localhost:5001"],
       frameAncestors: ["'self'", "http://localhost:3000"],
+      mediaSrc: ["'self'", "blob:", "data:"],
+      connectSrc: ["'self'", "http://localhost:3000", "http://localhost:5001"],
     },
   },
   crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -99,7 +101,7 @@ app.use('/api/', generalLimiter);
 
 // CORS configuration for Express
 app.use(cors({
-  origin: '*', // Allow all origins temporarily
+  origin: ['http://localhost:3000', 'http://localhost:3002'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

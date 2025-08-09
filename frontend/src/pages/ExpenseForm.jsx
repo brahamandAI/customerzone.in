@@ -24,6 +24,7 @@ const ExpenseForm = () => {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [stream, setStream] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [openSnackbar, setOpenSnackbar] = useState(false);
@@ -32,7 +33,19 @@ const ExpenseForm = () => {
   const [sites, setSites] = useState([]);
   const [viewAttachments, setViewAttachments] = useState(false);
   const [currentExpenseId, setCurrentExpenseId] = useState(null);
+  const [showFileUploadDialog, setShowFileUploadDialog] = useState(false);
+  const [fileUploadMessage, setFileUploadMessage] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertSeverity, setAlertSeverity] = useState('error');
+  const [showAlert, setShowAlert] = useState(false);
   
+  // Helper function to show alerts
+  const showAlertMessage = (message, severity = 'error') => {
+    setAlertMessage(message);
+    setAlertSeverity(severity);
+    setShowAlert(true);
+  };
+
   // Generate expense number helper function
   const generateExpenseNumber = () => {
     const now = new Date();
@@ -132,7 +145,41 @@ const ExpenseForm = () => {
   // Handle video stream when camera opens
   useEffect(() => {
     if (cameraOpen && stream && videoRef.current) {
+      console.log('🎥 Setting video stream...');
+      console.log('📹 Stream tracks:', stream.getTracks().map(track => ({
+        kind: track.kind,
+        enabled: track.enabled,
+        readyState: track.readyState
+      })));
+      
       videoRef.current.srcObject = stream;
+      
+      // Add event listeners for video
+      const video = videoRef.current;
+      
+      const handleVideoLoad = () => {
+        console.log('✅ Video loaded and ready');
+        console.log('📐 Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+      };
+      
+      const handleVideoError = (error) => {
+        console.error('❌ Video error:', error);
+      };
+      
+      const handleCanPlay = () => {
+        console.log('✅ Video can play, ready for capture');
+        console.log('📐 Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+      };
+      
+      video.addEventListener('loadeddata', handleVideoLoad);
+      video.addEventListener('error', handleVideoError);
+      video.addEventListener('canplay', handleCanPlay);
+      
+      return () => {
+        video.removeEventListener('loadeddata', handleVideoLoad);
+        video.removeEventListener('error', handleVideoError);
+        video.removeEventListener('canplay', handleCanPlay);
+      };
     }
   }, [cameraOpen, stream]);
 
@@ -198,6 +245,14 @@ const ExpenseForm = () => {
 
   const openCamera = async () => {
     try {
+      console.log('🔍 Opening camera...');
+      setCameraLoading(true);
+      
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera API not supported in this browser');
+      }
+      
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment', // Use back camera if available
@@ -205,11 +260,43 @@ const ExpenseForm = () => {
           height: { ideal: 1080 }
         } 
       });
+      
+      console.log('✅ Camera stream obtained:', mediaStream);
+      console.log('📹 Stream tracks:', mediaStream.getTracks().map(track => ({
+        kind: track.kind,
+        enabled: track.enabled,
+        readyState: track.readyState
+      })));
       setStream(mediaStream);
       setCameraOpen(true);
+      
+      // Force a small delay to ensure video element is ready
+      setTimeout(() => {
+        if (videoRef.current) {
+          console.log('🎥 Video element ready, setting stream...');
+          videoRef.current.srcObject = mediaStream;
+        }
+      }, 100);
     } catch (error) {
-      console.error('Camera access denied:', error);
-      alert('Camera access is required to take photos. Please allow camera permissions.');
+      console.error('❌ Camera access denied:', error);
+      
+      let errorMessage = 'Camera access is required to take photos. ';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage += 'Please allow camera permissions in your browser settings.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage += 'No camera found on this device.';
+      } else if (error.name === 'NotSupportedError') {
+        errorMessage += 'Camera API not supported in this browser.';
+      } else {
+        errorMessage += 'Please check your camera permissions and try again.';
+      }
+      
+      // Show error and suggest file upload as alternative
+      setFileUploadMessage(errorMessage + '\n\nWould you like to upload a photo file instead?');
+      setShowFileUploadDialog(true);
+    } finally {
+      setCameraLoading(false);
     }
   };
 
@@ -222,14 +309,39 @@ const ExpenseForm = () => {
   };
 
   const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
+    console.log('📸 Capturing photo...');
+    
+    if (!videoRef.current || !canvasRef.current) {
+      console.error('❌ Video or canvas ref not available');
+      showAlertMessage('Camera not ready. Please try again.');
+      return;
+    }
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    // Check if video is ready
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+      console.error('❌ Video not ready for capture');
+      showAlertMessage('Camera not ready. Please wait a moment and try again.');
+      return;
+    }
+    
+    // Check if video has valid dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.error('❌ Video has no dimensions');
+      showAlertMessage('Camera not ready. Please wait a moment and try again.');
+      return;
+    }
+    
+    try {
       const context = canvas.getContext('2d');
 
       // Set canvas size to match video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
+
+      console.log('📐 Canvas size set to:', canvas.width, 'x', canvas.height);
 
       // Draw video frame to canvas
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -237,24 +349,32 @@ const ExpenseForm = () => {
       // Convert canvas to blob
       canvas.toBlob((blob) => {
         if (blob) {
+          console.log('✅ Photo captured successfully, blob size:', blob.size);
           const fileName = `expense_photo_${Date.now()}.jpg`;
           const file = new File([blob], fileName, { type: 'image/jpeg' });
           
-                     const newAttachment = {
-             id: Date.now() + Math.random(),
-             name: fileName,
-             size: file.size,
-             type: 'image/jpeg',
-             mimetype: 'image/jpeg', // Add mimetype for AttachmentViewer
-             originalName: fileName, // Add originalName for AttachmentViewer
-             source: 'camera',
-             file: file
-           };
+          const newAttachment = {
+            id: Date.now() + Math.random(),
+            name: fileName,
+            size: file.size,
+            type: 'image/jpeg',
+            mimetype: 'image/jpeg',
+            originalName: fileName,
+            source: 'camera',
+            file: file
+          };
           
+          console.log('📎 Adding attachment:', newAttachment);
           setAttachments([...attachments, newAttachment]);
           closeCamera();
+        } else {
+          console.error('❌ Failed to create blob from canvas');
+          showAlertMessage('Failed to capture photo. Please try again.');
         }
       }, 'image/jpeg', 0.8);
+    } catch (error) {
+      console.error('❌ Error capturing photo:', error);
+      showAlertMessage('Error capturing photo. Please try again.');
     }
   };
 
@@ -974,15 +1094,16 @@ const ExpenseForm = () => {
                       </Button>
                       <Button
                         variant="contained"
-                        startIcon={<CameraAltIcon />}
+                        startIcon={cameraLoading ? <CircularProgress size={20} color="inherit" /> : <CameraAltIcon />}
                         onClick={openCamera}
+                        disabled={cameraLoading}
                         sx={{ 
                           flex: 1,
                           background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
                           '&:hover': { background: 'linear-gradient(45deg, #5a6fd8 30%, #6a4190 90%)' }
                         }}
                       >
-                        Take Photo
+                        {cameraLoading ? 'Opening Camera...' : 'Take Photo'}
                       </Button>
                     </Box>
                     <Typography variant="caption" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
@@ -1074,20 +1195,77 @@ const ExpenseForm = () => {
         </DialogTitle>
         <DialogContent sx={{ p: 0 }}>
           <Box sx={{ position: 'relative', width: '100%', height: 400 }}>
+            {/* Camera Status Indicator */}
+            {cameraOpen && (
+              <Box sx={{
+                position: 'absolute',
+                top: 10,
+                left: 10,
+                zIndex: 2,
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                color: 'white',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px'
+              }}>
+                {stream ? '📹 Camera Active' : '⏳ Initializing...'}
+              </Box>
+            )}
             <video
               ref={videoRef}
               autoPlay
               playsInline
+              muted
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover'
               }}
+              onLoadedMetadata={() => console.log('🎥 Video metadata loaded')}
+              onCanPlay={() => console.log('🎥 Video can play')}
+              onError={(e) => console.error('❌ Video error:', e)}
             />
+            {/* Fallback message if video doesn't show */}
+            {cameraOpen && !stream && (
+              <Box sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center',
+                color: 'white',
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                padding: '20px',
+                borderRadius: '8px'
+              }}>
+                <Typography variant="h6">Camera Initializing...</Typography>
+                <Typography variant="body2">Please wait while we set up your camera</Typography>
+              </Box>
+            )}
             <canvas
               ref={canvasRef}
               style={{ display: 'none' }}
             />
+            {/* Loading overlay */}
+            {cameraLoading && (
+              <Box sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                zIndex: 1
+              }}>
+                <Box sx={{ textAlign: 'center', color: 'white' }}>
+                  <CircularProgress size={60} sx={{ mb: 2 }} />
+                  <Typography variant="h6">Opening Camera...</Typography>
+                </Box>
+              </Box>
+            )}
             {/* Camera Controls Overlay */}
             <Box sx={{
               position: 'absolute',
@@ -1209,6 +1387,76 @@ const ExpenseForm = () => {
            />
          </DialogContent>
       </Dialog>
+
+      {/* File Upload Confirmation Dialog */}
+      <Dialog
+        open={showFileUploadDialog}
+        onClose={() => setShowFileUploadDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ 
+          bgcolor: 'primary.main',
+          color: 'white'
+        }}>
+          Camera Access Issue
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
+            {fileUploadMessage}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setShowFileUploadDialog(false)}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => {
+              setShowFileUploadDialog(false);
+              // Trigger file upload
+              const fileInput = document.createElement('input');
+              fileInput.type = 'file';
+              fileInput.accept = 'image/*';
+              fileInput.onchange = (e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleFileUpload(e);
+                }
+              };
+              fileInput.click();
+            }}
+            variant="contained"
+            color="primary"
+          >
+            Upload Photo
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Alert Snackbar */}
+      <Snackbar
+        open={showAlert}
+        autoHideDuration={4000}
+        onClose={() => setShowAlert(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          elevation={6} 
+          variant="filled" 
+          severity={alertSeverity}
+          sx={{ 
+            width: '100%',
+            fontSize: '1.1rem',
+            '& .MuiAlert-icon': {
+              fontSize: '2rem'
+            }
+          }}
+        >
+          {alertMessage}
+        </Alert>
+      </Snackbar>
 
       {/* Show error alert if there's an error */}
       {error && (

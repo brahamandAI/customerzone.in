@@ -50,8 +50,10 @@ export const SocketProvider = ({ children }) => {
     console.log('Creating new socket connection for user:', user._id);
     const newSocket = io('http://localhost:5001', {
       withCredentials: true,
-      transports: ['websocket'],
-      auth: { userId: user._id, role: user.role }
+      transports: ['websocket', 'polling'], // Allow fallback to polling
+      auth: { userId: user._id, role: user.role },
+      timeout: 20000, // 20 second timeout
+      forceNew: true // Force new connection
     });
 
     // Store socket reference first
@@ -88,6 +90,14 @@ export const SocketProvider = ({ children }) => {
         userId: user._id,
         role: user.role
       });
+      
+      // Try to reconnect after a delay
+      setTimeout(() => {
+        if (socketRef.current && !socketRef.current.connected) {
+          console.log('Attempting to reconnect socket...');
+          socketRef.current.connect();
+        }
+      }, 5000);
     });
 
     newSocket.on('disconnect', (reason) => {
@@ -96,6 +106,11 @@ export const SocketProvider = ({ children }) => {
         console.log('Attempting reconnection...');
         newSocket.connect();
       }
+    });
+
+    // Handle connection timeout
+    newSocket.on('connect_timeout', () => {
+      console.error('Socket connection timeout');
     });
 
     // Handle notifications
