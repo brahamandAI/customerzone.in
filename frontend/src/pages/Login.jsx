@@ -287,7 +287,8 @@ const Login = () => {
           zIndex: 1, 
           width: '100%', 
           maxWidth: 1200,
-          display: 'flex',
+          display: { xs: 'flex', md: 'flex' },
+          flexDirection: { xs: 'column', md: 'row' },
           gap: 0,
           borderRadius: 4,
           overflow: 'hidden',
@@ -297,7 +298,7 @@ const Login = () => {
           <Zoom in style={{ transitionDelay: '200ms' }}>
             <Paper elevation={24} sx={{ 
               flex: 1,
-              p: 5, 
+              p: { xs: 3, sm: 4, md: 5 }, 
               background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
               backdropFilter: 'blur(20px)',
               border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.3)',
@@ -305,6 +306,7 @@ const Login = () => {
               flexDirection: 'column',
               justifyContent: 'center',
               position: 'relative',
+              minHeight: { xs: 'auto', md: '600px' },
               '&::before': {
                 content: '""',
                 position: 'absolute',
@@ -318,6 +320,25 @@ const Login = () => {
             }}>
               {/* Login Form Header */}
               <Box sx={{ mb: 4, textAlign: 'center' }}>
+                {/* Mobile Logo and Title */}
+                <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+                  <img 
+                    src="/rakshak-logo.png" 
+                    alt="Rakshak Securitas Logo" 
+                    style={{ 
+                      height: '60px', 
+                      width: 'auto',
+                      marginBottom: '16px'
+                    }}
+                  />
+                  <Typography variant="h5" fontWeight={700} color="#008080" sx={{ mb: 1 }}>
+                    Rakshak Securitas
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ opacity: 0.8 }}>
+                    Expense Management System
+                  </Typography>
+                </Box>
+                
                 <Typography variant="body1" color="text.secondary" sx={{ opacity: 0.8 }}>
                   Sign in to your account to continue
                 </Typography>
@@ -632,7 +653,7 @@ const Login = () => {
               {/* Demo Credentials */}
               <Box sx={{ 
                 mt: 4, 
-                p: 3, 
+                p: { xs: 2, sm: 2.5, md: 3 }, 
                 bgcolor: 'rgba(0,128,128,0.1)', 
                 borderRadius: 3,
                 border: '1px solid rgba(0,128,128,0.2)',
@@ -648,54 +669,54 @@ const Login = () => {
                   background: 'linear-gradient(90deg, #008080, #20B2AA)'
                 }
               }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.9rem', md: '0.9rem' } }}>
                   🚀 Demo Credentials:
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <Box sx={{ p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontWeight: 600 }}>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.8rem' } }}>
                       👤 Expense Submitter
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem', md: '0.8rem' } }}>
                       📧 submitter@rakshaksecuritas.com
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem', md: '0.8rem' } }}>
                       🔑 Password: submitter123
                     </Typography>
                   </Box>
                   
                   <Box sx={{ p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontWeight: 600 }}>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.8rem' } }}>
                       🛡️ Level 1 Approver (Regional Manager)
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem', md: '0.8rem' } }}>
                       📧 l1approver@rakshaksecuritas.com
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem', md: '0.8rem' } }}>
                       🔑 Password: l1approver123
                     </Typography>
                   </Box>
                   
                   <Box sx={{ p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontWeight: 600 }}>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.8rem' } }}>
                       🏢 Level 2 Approver (Admin)
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem', md: '0.8rem' } }}>
                       📧 l2approver@rakshaksecuritas.com
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem', md: '0.8rem' } }}>
                       🔑 Password: l2approver123
                     </Typography>
                   </Box>
                   
                   <Box sx={{ p: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontWeight: 600 }}>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.8rem' } }}>
                       💰 Level 3 Approver (Finance)
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem', md: '0.8rem' } }}>
                       📧 l3approver@rakshaksecuritas.com
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem', md: '0.8rem' } }}>
                       🔑 Password: l3approver123
                     </Typography>
                   </Box>
@@ -712,13 +733,14 @@ const Login = () => {
               flex: 1,
               background: 'linear-gradient(135deg, #008080 0%, #20B2AA 100%)',
               color: 'white',
-              display: 'flex',
+              display: { xs: 'none', md: 'flex' },
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
-              p: 6,
+              p: { xs: 3, sm: 4, md: 6 },
               position: 'relative',
               overflow: 'hidden',
+              minHeight: { xs: 'auto', md: '600px' },
               '&::before': {
                 content: '""',
                 position: 'absolute',
@@ -733,8 +755,8 @@ const Login = () => {
               {/* Company Logo */}
               <Box sx={{ 
                 mb: 4, 
-                width: 200, 
-                height: 200,
+                width: { xs: 120, sm: 150, md: 200 }, 
+                height: { xs: 120, sm: 150, md: 200 },
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -763,6 +785,9 @@ const Login = () => {
                     objectFit: 'contain',
                     filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
                   }}
+                  sx={{
+                    height: { xs: '80px', sm: '100px', md: '120px' }
+                  }}
                 />
               </Box>
 
@@ -771,7 +796,7 @@ const Login = () => {
                 textAlign: 'center',
                 textShadow: '2px 2px 4px rgba(0,0,0,0.3)',
                 mb: 2,
-                fontSize: { xs: '2.5rem', sm: '3rem', md: '3.5rem' }
+                fontSize: { xs: '1.8rem', sm: '2.2rem', md: '3.5rem' }
               }}>
                 Rakshak Securitas
               </Typography>
@@ -782,7 +807,7 @@ const Login = () => {
                 textAlign: 'center',
                 opacity: 0.9,
                 fontWeight: 600,
-                fontSize: { xs: '1.2rem', sm: '1.4rem', md: '1.6rem' }
+                fontSize: { xs: '1rem', sm: '1.2rem', md: '1.6rem' }
               }}>
                 Expense Management System
               </Typography>
@@ -793,14 +818,16 @@ const Login = () => {
                 mb: 4,
                 opacity: 0.8,
                 maxWidth: 400,
-                lineHeight: 1.6
+                lineHeight: 1.6,
+                fontSize: { xs: '0.9rem', sm: '1rem', md: '1rem' },
+                px: { xs: 2, sm: 3, md: 0 }
               }}>
                 Leading security services provider with comprehensive expense management solutions. 
                 Streamline your financial processes with our advanced expense tracking system.
               </Typography>
 
               {/* Key Features */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 4 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 4, px: { xs: 2, sm: 3, md: 0 } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Box sx={{ 
                     width: 8, 
@@ -809,7 +836,7 @@ const Login = () => {
                     bgcolor: 'white',
                     opacity: 0.8
                   }} />
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.8rem', sm: '0.9rem', md: '0.9rem' } }}>
                     Multi-level approval workflow
                   </Typography>
                 </Box>
@@ -821,7 +848,7 @@ const Login = () => {
                     bgcolor: 'white',
                     opacity: 0.8
                   }} />
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.8rem', sm: '0.9rem', md: '0.9rem' } }}>
                     Real-time budget monitoring
                   </Typography>
                 </Box>
@@ -833,7 +860,7 @@ const Login = () => {
                     bgcolor: 'white',
                     opacity: 0.8
                   }} />
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.8rem', sm: '0.9rem', md: '0.9rem' } }}>
                     Advanced reporting & analytics
                   </Typography>
                 </Box>
@@ -845,7 +872,7 @@ const Login = () => {
                     bgcolor: 'white',
                     opacity: 0.8
                   }} />
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.8rem', sm: '0.9rem', md: '0.9rem' } }}>
                     Secure & compliant platform
                   </Typography>
                 </Box>
@@ -853,34 +880,35 @@ const Login = () => {
 
               {/* Contact Info */}
               <Box sx={{ 
-                p: 3, 
+                p: { xs: 2, sm: 2.5, md: 3 }, 
                 bgcolor: 'rgba(255,255,255,0.1)', 
                 borderRadius: 3,
                 border: '1px solid rgba(255,255,255,0.2)',
-                textAlign: 'center'
+                textAlign: 'center',
+                mx: { xs: 2, sm: 3, md: 0 }
               }}>
-                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1, fontWeight: 600 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1, fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.9rem', md: '0.9rem' } }}>
                   Rakshak Securitas
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1, fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.9rem' } }}>
                   📧 info@rakshaksecuritas.com
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1, fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.9rem' } }}>
                   📞 +91 98765 43210
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9, mb: 2 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, mb: 2, fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.9rem' } }}>
                   🌐 www.rakshaksecuritas.com
                 </Typography>
                 
                 <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.3)' }} />
                 
-                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1, fontWeight: 600 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1, fontWeight: 600, fontSize: { xs: '0.8rem', sm: '0.9rem', md: '0.9rem' } }}>
                   Developed by ROBUSTRIX
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, mb: 1, fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.9rem' } }}>
                   📧 info@therobustrix.com
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.9rem' } }}>
                   📞 +91 9090020245
                 </Typography>
               </Box>
@@ -890,19 +918,20 @@ const Login = () => {
                 mt: 4, 
                 pt: 3, 
                 borderTop: '1px solid rgba(255,255,255,0.2)',
-                textAlign: 'center'
+                textAlign: 'center',
+                px: { xs: 2, sm: 3, md: 0 }
               }}>
-                <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                <Typography variant="caption" sx={{ opacity: 0.7, fontSize: { xs: '0.6rem', sm: '0.7rem', md: '0.7rem' } }}>
                   © 2025 Rakshak Securitas. All rights reserved.
                 </Typography>
-                <Typography variant="caption" display="block" sx={{ opacity: 0.6, mt: 0.5 }}>
+                <Typography variant="caption" display="block" sx={{ opacity: 0.6, mt: 0.5, fontSize: { xs: '0.6rem', sm: '0.7rem', md: '0.7rem' } }}>
                   Crafted by ROBUSTRIX – Empowering seamless expense management.
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 1 }}>
-                  <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <Typography variant="caption" sx={{ opacity: 0.6, fontSize: { xs: '0.6rem', sm: '0.7rem', md: '0.7rem' } }}>
                     📧 info@therobustrix.com
                   </Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                  <Typography variant="caption" sx={{ opacity: 0.6, fontSize: { xs: '0.6rem', sm: '0.7rem', md: '0.7rem' } }}>
                     📞 +91 9090020245
                   </Typography>
                 </Box>
@@ -913,15 +942,25 @@ const Login = () => {
       </Fade>
 
       {/* Forgot Password Dialog */}
-      <Dialog open={openForgotPasswordDialog} onClose={handleCloseForgotPasswordDialog} PaperProps={{ sx: { borderRadius: 4 } }}>
+      <Dialog 
+        open={openForgotPasswordDialog} 
+        onClose={handleCloseForgotPasswordDialog} 
+        PaperProps={{ 
+          sx: { 
+            borderRadius: 4,
+            width: { xs: '90%', sm: '400px' },
+            maxWidth: '90vw'
+          } 
+        }}
+      >
         <DialogTitle sx={{ textAlign: 'center', py: 3 }}>
-          <LockIcon sx={{ fontSize: 60, color: '#008080' }} />
-          <Typography variant="h5" sx={{ mt: 2 }}>
+          <LockIcon sx={{ fontSize: { xs: 40, sm: 50, md: 60 }, color: '#008080' }} />
+          <Typography variant="h5" sx={{ mt: 2, fontSize: { xs: '1.2rem', sm: '1.5rem', md: '1.5rem' } }}>
             Forgot Password?
           </Typography>
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" sx={{ mb: 2 }}>
+        <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
+          <Typography variant="body1" sx={{ mb: 2, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
             Enter your email address to receive a password reset link.
           </Typography>
           <TextField
@@ -952,11 +991,15 @@ const Login = () => {
             </Alert>
           )}
         </DialogContent>
-        <DialogActions sx={{ pb: 3, px: 3 }}>
+        <DialogActions sx={{ pb: 3, px: { xs: 2, sm: 3 }, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1, sm: 1 } }}>
           <Button
             variant="outlined"
             onClick={handleCloseForgotPasswordDialog}
-            sx={{ color: '#008080', borderColor: '#008080' }}
+            sx={{ 
+              color: '#008080', 
+              borderColor: '#008080',
+              width: { xs: '100%', sm: 'auto' }
+            }}
           >
             Cancel
           </Button>
@@ -970,7 +1013,8 @@ const Login = () => {
               '&:disabled': {
                 background: 'rgba(0,128,128,0.3)',
                 transform: 'none'
-              }
+              },
+              width: { xs: '100%', sm: 'auto' }
             }}
           >
             {loading ? 'Sending...' : 'Send Reset Link'}

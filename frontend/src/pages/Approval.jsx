@@ -603,6 +603,53 @@ const Approval = () => {
                 </Paper>
               </Zoom>
             </Grid>
+            
+            {/* All Sites Card for L2 Approvers */}
+            {isL2Approver && (
+              <Grid item xs={12} md={3}>
+                <Zoom in style={{ transitionDelay: '1000ms' }}>
+                  <Paper 
+                    elevation={16} 
+                    sx={{ 
+                      p: 3, 
+                      borderRadius: 3, 
+                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: darkMode ? '1px solid rgba(51,51,51,0.2)' : '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                        background: darkMode ? 'rgba(26,26,26,0.98)' : 'rgba(255,255,255,0.98)',
+                      }
+                    }}
+                    onClick={() => navigate('/all-sites-approval')}
+                  >
+                    <Avatar sx={{ bgcolor: '#9c27b0', mx: 'auto', mb: 2 }}>
+                      <BusinessIcon />
+                    </Avatar>
+                    <Typography variant="h6" fontWeight={700} color="#9c27b0" sx={{ mb: 1 }}>
+                      All Sites
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      View expenses from all sites
+                    </Typography>
+                    <Button 
+                      variant="contained" 
+                      size="small"
+                      sx={{ 
+                        background: 'linear-gradient(45deg, #9c27b0 30%, #ba68c8 90%)',
+                        '&:hover': { background: 'linear-gradient(45deg, #7b1fa2 30%, #9c27b0 90%)' }
+                      }}
+                    >
+                      View All
+                    </Button>
+                  </Paper>
+                </Zoom>
+              </Grid>
+            )}
           </Grid>
 
           {/* Approvals List */}

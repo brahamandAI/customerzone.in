@@ -264,8 +264,12 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
       });
     }
 
-    // Check for duplicate expense number
-    const existingExpense = await Expense.findOne({ expenseNumber });
+    // Check for duplicate expense number (exclude reserved/temporary expenses)
+    const existingExpense = await Expense.findOne({ 
+      expenseNumber,
+      status: { $ne: 'reserved' }, // Exclude reserved expenses
+      isActive: true // Only check active expenses
+    });
 
     if (existingExpense) {
       return res.status(400).json({

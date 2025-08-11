@@ -186,10 +186,10 @@ const AdminPanel = () => {
     },
     {
       title: 'Manage Sites',
-      description: 'Create and configure sites',
+      description: 'View and manage all sites',
       icon: <BusinessIcon />,
       color: '#4caf50',
-      action: () => navigate('/create-site')
+      action: () => navigate('/manage-sites')
     },
     {
       title: 'Manage Categories',

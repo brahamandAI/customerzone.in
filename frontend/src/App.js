@@ -24,8 +24,11 @@ import { LanguageProvider } from './context/LanguageContext';
 import './App.css';
 import './responsive.css';
 import ManageUsers from './pages/ManageUsers';
+import ManageSites from './pages/ManageSites';
 import EditUser from './pages/EditUser';
+import EditSite from './pages/EditSite';
 import ResetPassword from './pages/ResetPassword';
+import AllSitesApproval from './pages/AllSitesApproval';
 
 // PrivateRoute component to protect routes
 const PrivateRoute = ({ children }) => {
@@ -90,6 +93,12 @@ function Layout() {
           </PrivateRoute>
         } />
         
+        <Route path="/all-sites-approval" element={
+          <PrivateRoute>
+            <AllSitesApproval />
+          </PrivateRoute>
+        } />
+        
         <Route path="/admin" element={
           <PrivateRoute>
             <AdminPanel />
@@ -147,6 +156,18 @@ function Layout() {
         <Route path="/manage-users" element={
           <PrivateRoute>
             <ManageUsers />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/manage-sites" element={
+          <PrivateRoute>
+            <ManageSites />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/edit-site/:siteId" element={
+          <PrivateRoute>
+            <EditSite />
           </PrivateRoute>
         } />
         

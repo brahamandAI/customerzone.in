@@ -193,4 +193,107 @@ router.get('/:siteId', async (req, res) => {
   }
 });
 
+// Update site
+router.put('/:siteId', protect, authorize('l3_approver', 'finance'), async (req, res) => {
+  try {
+    const { siteId } = req.params;
+    const updateData = req.body;
+    
+    const site = await Site.findById(siteId);
+    if (!site) {
+      return res.status(404).json({
+        success: false,
+        message: 'Site not found'
+      });
+    }
+
+    // Check if code is being updated and if it already exists
+    if (updateData.code && updateData.code !== site.code) {
+      const existingSite = await Site.findOne({ code: updateData.code });
+      if (existingSite) {
+        return res.status(400).json({
+          success: false,
+          message: 'Site with this code already exists'
+        });
+      }
+    }
+
+    // Update site fields
+    Object.keys(updateData).forEach(key => {
+      if (key !== '_id' && key !== '__v') {
+        site[key] = updateData[key];
+      }
+    });
+
+    await site.save();
+
+    res.json({
+      success: true,
+      message: 'Site updated successfully',
+      data: site
+    });
+
+  } catch (error) {
+    console.error('Error updating site:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Delete site
+router.delete('/:siteId', protect, authorize('l3_approver', 'finance'), async (req, res) => {
+  try {
+    const { siteId } = req.params;
+    
+    const site = await Site.findById(siteId);
+    if (!site) {
+      return res.status(404).json({
+        success: false,
+        message: 'Site not found'
+      });
+    }
+
+    // Check if site has any associated users or expenses
+    const User = require('../models/User');
+    const Expense = require('../models/Expense');
+    
+    const usersWithSite = await User.find({ site: siteId });
+    const expensesWithSite = await Expense.find({ site: siteId });
+    
+    if (usersWithSite.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete site. There are users associated with this site.'
+      });
+    }
+    
+    if (expensesWithSite.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete site. There are expenses associated with this site.'
+      });
+    }
+
+    // Soft delete by setting isActive to false
+    site.isActive = false;
+    await site.save();
+
+    res.json({
+      success: true,
+      message: 'Site deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Error deleting site:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 
