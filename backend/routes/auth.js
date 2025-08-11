@@ -7,6 +7,7 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const googleAuthService = require('../services/googleAuth.service');
+const emailService = require('../services/emailService');
 
 const router = express.Router();
 
@@ -427,14 +428,22 @@ router.post('/forgot-password', [
   const resetToken = user.getResetPasswordToken();
   await user.save();
 
-  // In a real application, you would send an email here
-  // For now, we'll just return the token (don't do this in production!)
+  // Send password reset email
+  const emailSent = await emailService.sendPasswordResetEmail(user.email, resetToken);
   
-  res.json({
-    success: true,
-    message: 'Password reset token generated',
-    resetToken: resetToken // Remove this in production
-  });
+  if (emailSent) {
+    res.json({
+      success: true,
+      message: 'Password reset instructions have been sent to your email address.'
+    });
+  } else {
+    // If email fails, still return success but with a note
+    res.json({
+      success: true,
+      message: 'Password reset request received. Please check your email or contact administrator if you don\'t receive it.',
+      resetToken: process.env.NODE_ENV === 'development' ? resetToken : undefined // Only show token in development
+    });
+  }
 }));
 
 // @desc    Reset password

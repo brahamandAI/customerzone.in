@@ -25,6 +25,7 @@ import './App.css';
 import './responsive.css';
 import ManageUsers from './pages/ManageUsers';
 import EditUser from './pages/EditUser';
+import ResetPassword from './pages/ResetPassword';
 
 // PrivateRoute component to protect routes
 const PrivateRoute = ({ children }) => {
@@ -50,6 +51,7 @@ function Layout() {
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
         
         {/* Protected Routes */}
         <Route path="/" element={

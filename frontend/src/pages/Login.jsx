@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, TextField, Button, Fade, Zoom, Avatar, InputAdornment, IconButton, FormControlLabel, Checkbox, FormControl, InputLabel, Select, MenuItem, Divider } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, Fade, Zoom, Avatar, InputAdornment, IconButton, FormControlLabel, Checkbox, FormControl, InputLabel, Select, MenuItem, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -7,6 +7,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import SecurityIcon from '@mui/icons-material/Security';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PersonIcon from '@mui/icons-material/Person';
+import EmailIcon from '@mui/icons-material/Email';
 import { GoogleLogin } from '@react-oauth/google';
 
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +29,10 @@ const Login = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [particles, setParticles] = useState([]);
+  const [openForgotPasswordDialog, setOpenForgotPasswordDialog] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordError, setForgotPasswordError] = useState('');
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState('');
 
   // Generate floating particles
   useEffect(() => {
@@ -143,6 +148,35 @@ const Login = () => {
   const handleGoogleError = () => {
     console.error('Google Sign-In Error');
     setErrors({ email: 'Google sign-in was cancelled or failed. Please try again.' });
+  };
+
+  const handleForgotPassword = async () => {
+    if (!forgotPasswordEmail) {
+      setForgotPasswordError('Email is required to reset password.');
+      return;
+    }
+
+    setLoading(true);
+    setForgotPasswordError('');
+    setForgotPasswordSuccess('');
+
+    try {
+      await authAPI.forgotPassword(forgotPasswordEmail);
+      setForgotPasswordSuccess('Password reset instructions have been sent to your email.');
+      setOpenForgotPasswordDialog(false);
+      setForgotPasswordEmail('');
+    } catch (error) {
+      setForgotPasswordError(error.response?.data?.message || 'Failed to send password reset instructions.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCloseForgotPasswordDialog = () => {
+    setOpenForgotPasswordDialog(false);
+    setForgotPasswordEmail('');
+    setForgotPasswordError('');
+    setForgotPasswordSuccess('');
   };
 
   const getRoleIcon = (role) => {
@@ -508,6 +542,7 @@ const Login = () => {
                         color: '#008080',
                         '&:hover': { background: 'rgba(0,128,128,0.1)' }
                       }}
+                      onClick={() => setOpenForgotPasswordDialog(true)}
                     >
                       Forgot password?
                     </Button>
@@ -876,6 +911,72 @@ const Login = () => {
           </Zoom>
         </Box>
       </Fade>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={openForgotPasswordDialog} onClose={handleCloseForgotPasswordDialog} PaperProps={{ sx: { borderRadius: 4 } }}>
+        <DialogTitle sx={{ textAlign: 'center', py: 3 }}>
+          <LockIcon sx={{ fontSize: 60, color: '#008080' }} />
+          <Typography variant="h5" sx={{ mt: 2 }}>
+            Forgot Password?
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Enter your email address to receive a password reset link.
+          </Typography>
+          <TextField
+            fullWidth
+            label="Email Address"
+            type="email"
+            value={forgotPasswordEmail}
+            onChange={(e) => setForgotPasswordEmail(e.target.value)}
+            error={!!forgotPasswordError}
+            helperText={forgotPasswordError}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <EmailIcon sx={{ color: '#008080' }} />
+                </InputAdornment>
+              )
+            }}
+            sx={{ mb: 2 }}
+          />
+          {forgotPasswordSuccess && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {forgotPasswordSuccess}
+            </Alert>
+          )}
+          {forgotPasswordError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {forgotPasswordError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ pb: 3, px: 3 }}>
+          <Button
+            variant="outlined"
+            onClick={handleCloseForgotPasswordDialog}
+            sx={{ color: '#008080', borderColor: '#008080' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleForgotPassword}
+            disabled={loading}
+            sx={{
+              background: 'linear-gradient(45deg, #008080 30%, #20B2AA 90%)',
+              '&:hover': { background: 'linear-gradient(45deg, #006666 30%, #008080 90%)' },
+              '&:disabled': {
+                background: 'rgba(0,128,128,0.3)',
+                transform: 'none'
+              }
+            }}
+          >
+            {loading ? 'Sending...' : 'Send Reset Link'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

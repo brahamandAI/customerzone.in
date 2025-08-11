@@ -46,6 +46,8 @@ export const authAPI = {
   logout: () => api.post('/auth/logout'),
   getProfile: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (resetToken, password) => api.post(`/auth/reset-password/${resetToken}`, { password }),
 };
 
 // Expense API calls

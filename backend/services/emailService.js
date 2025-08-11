@@ -101,6 +101,32 @@ class EmailService {
     }
   }
 
+  async sendPasswordResetEmail(userEmail, resetToken) {
+    if (!this.transporter) {
+      console.error('❌ Email transporter not initialized');
+      return false;
+    }
+
+    try {
+      const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
+      
+      const mailOptions = {
+        from: `"${process.env.EMAIL_FROM_NAME || 'Rakshak Expense System'}" <${process.env.EMAIL_FROM || process.env.SMTP_EMAIL}>`,
+        to: userEmail,
+        subject: '🔐 Password Reset Request - Rakshak Expense System',
+        html: this.generatePasswordResetHTML(resetUrl),
+        text: this.generatePasswordResetText(resetUrl)
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log('✅ Password reset email sent successfully to:', userEmail);
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to send password reset email:', error);
+      return false;
+    }
+  }
+
   generateExpenseNotificationHTML(expenseData) {
     return `
       <!DOCTYPE html>
@@ -321,6 +347,84 @@ Please review your site's expenses and budget allocation.
 
 This is an automated notification from Rakshak Expense Management System.
 Please do not reply to this email.
+    `;
+  }
+
+  generatePasswordResetHTML(resetUrl) {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Password Reset Request</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #008080; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .button { display: inline-block; padding: 12px 24px; background: #008080; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 15px 0; border-radius: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🔐 Password Reset Request</h1>
+          </div>
+          <div class="content">
+            <p>Hello,</p>
+            <p>We received a request to reset your password for the Rakshak Expense Management System.</p>
+            
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="${resetUrl}" class="button">Reset Password</a>
+            </p>
+            
+            <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #008080;">${resetUrl}</p>
+            
+            <div class="warning">
+              <p><strong>⚠️ Important:</strong></p>
+              <ul>
+                <li>This link will expire in 10 minutes</li>
+                <li>If you didn't request this password reset, please ignore this email</li>
+                <li>For security reasons, this link can only be used once</li>
+              </ul>
+            </div>
+            
+            <p>If you have any questions, please contact your system administrator.</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated notification from Rakshak Expense Management System.</p>
+            <p>Please do not reply to this email.</p>
+            <p>© 2025 Rakshak Securitas. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  generatePasswordResetText(resetUrl) {
+    return `
+Password Reset Request
+
+We received a request to reset your password for the Rakshak Expense Management System.
+
+To reset your password, please click the following link:
+${resetUrl}
+
+Important:
+- This link will expire in 10 minutes
+- If you didn't request this password reset, please ignore this email
+- For security reasons, this link can only be used once
+
+If you have any questions, please contact your system administrator.
+
+This is an automated notification from Rakshak Expense Management System.
+Please do not reply to this email.
+
+© 2025 Rakshak Securitas. All rights reserved.
     `;
   }
 
