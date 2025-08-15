@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, Grid, Card, CardContent, Button, Fade, Zoom, FormControl, InputLabel, Select, MenuItem, TextField, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import { Box, Typography, Paper, Grid, Card, CardContent, Button, Fade, Zoom, FormControl, InputLabel, Select, MenuItem, TextField, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, CircularProgress, Alert } from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import DownloadIcon from '@mui/icons-material/Download';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -14,20 +14,113 @@ const Reports = () => {
   const { darkMode } = useTheme();
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const [selectedSite, setSelectedSite] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [useCustomRange, setUseCustomRange] = useState(false);
   const [expenseData, setExpenseData] = useState([]);
   const [barData, setBarData] = useState([]);
   const [pieData, setPieData] = useState([]);
   const [summaryStats, setSummaryStats] = useState([]);
   const [summaryData, setSummaryData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Function to validate date range
+  const validateDateRange = () => {
+    if (selectedPeriod === 'custom') {
+      if (!startDate || !endDate) {
+        return { valid: false, message: 'Please select both start and end dates' };
+      }
+      
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      if (start > end) {
+        return { valid: false, message: 'Start date cannot be after end date' };
+      }
+      
+      // Check if date range is not more than 2 years
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 730) { // 2 years
+        return { valid: false, message: 'Date range cannot exceed 2 years' };
+      }
+    }
+    
+    return { valid: true };
+  };
+
+  // Function to get date range based on selected period
+  const getDateRange = () => {
+    const now = new Date();
+    let start, end;
+    
+    switch (selectedPeriod) {
+      case 'week':
+        start = new Date(now);
+        start.setDate(now.getDate() - 7);
+        end = new Date(now);
+        break;
+      case 'month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        break;
+      case 'quarter':
+        start = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+        end = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 0);
+        break;
+      case 'year':
+        start = new Date(now.getFullYear(), 0, 1);
+        end = new Date(now.getFullYear(), 11, 31);
+        break;
+      case 'custom':
+        if (startDate && endDate) {
+          start = new Date(startDate);
+          end = new Date(endDate);
+        } else {
+          // Fallback to current month
+          start = new Date(now.getFullYear(), now.getMonth(), 1);
+          end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        }
+        break;
+      default:
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    }
+    
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0]
+    };
+  };
 
   useEffect(() => {
     async function fetchReports() {
+      // Validate date range before fetching
+      const validation = validateDateRange();
+      if (!validation.valid) {
+        console.warn('⚠️ Date range validation failed:', validation.message);
+        setError(validation.message);
+        return;
+      }
+      
+      setError('');
+      setLoading(true);
       try {
+        const dateRange = getDateRange();
+        const params = {
+          ...dateRange,
+          site: selectedSite !== 'all' ? selectedSite : undefined
+        };
+        
+        console.log('📊 Fetching reports with params:', params);
+        
         const [detailsRes, barRes, pieRes, summaryRes] = await Promise.allSettled([
-          reportAPI.getExpenseDetails(),
-          reportAPI.getBarData(),
-          reportAPI.getPieData(),
-          reportAPI.getExpenseSummary()
+          reportAPI.getExpenseDetails(params),
+          reportAPI.getBarData(params),
+          reportAPI.getPieData(params),
+          reportAPI.getExpenseSummary(params)
         ]);
 
         const expenseDataFromAPI = detailsRes.status === 'fulfilled' ? (detailsRes.value.data.data.expenses || []) : [];
@@ -111,10 +204,12 @@ const Reports = () => {
         setPieData([]);
         setSummaryStats([]);
         setSummaryData(null);
+      } finally {
+        setLoading(false);
       }
     }
     fetchReports();
-  }, []);
+  }, [selectedPeriod, selectedSite, startDate, endDate, useCustomRange]);
 
   const handleExportExcel = async () => {
     try {
@@ -274,19 +369,86 @@ const Reports = () => {
                   <FilterListIcon color="primary" />
                   <Typography variant="h6" fontWeight={600}>Filters:</Typography>
                 </Box>
+                
+                {loading && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={20} />
+                    <Typography variant="body2" color="primary">
+                      Loading reports...
+                    </Typography>
+                  </Box>
+                )}
+                
+                <Chip 
+                  label={`Period: ${selectedPeriod === 'custom' ? `${startDate} to ${endDate}` : selectedPeriod}`}
+                  color="primary"
+                  variant="outlined"
+                />
+                
+                {error && (
+                  <Alert severity="error" sx={{ mt: 2, width: '100%' }}>
+                    {error}
+                  </Alert>
+                )}
                 <FormControl sx={{ minWidth: 150 }}>
                   <InputLabel>Period</InputLabel>
                   <Select
                     value={selectedPeriod}
                     label="Period"
-                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedPeriod(e.target.value);
+                      if (e.target.value !== 'custom') {
+                        setUseCustomRange(false);
+                      }
+                    }}
                   >
                     <MenuItem value="week">This Week</MenuItem>
                     <MenuItem value="month">This Month</MenuItem>
                     <MenuItem value="quarter">This Quarter</MenuItem>
                     <MenuItem value="year">This Year</MenuItem>
+                    <MenuItem value="custom">Custom Range</MenuItem>
                   </Select>
                 </FormControl>
+                
+                {selectedPeriod === 'custom' && (
+                  <>
+                    <TextField
+                      label="Start Date"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ minWidth: 150 }}
+                    />
+                    <TextField
+                      label="End Date"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ minWidth: 150 }}
+                    />
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={() => {
+                        const validation = validateDateRange();
+                        if (validation.valid) {
+                          setError('');
+                          // Trigger report generation
+                          const dateRange = getDateRange();
+                          console.log('📊 Generating custom report for:', dateRange);
+                        } else {
+                          setError(validation.message);
+                        }
+                      }}
+                      disabled={!startDate || !endDate}
+                    >
+                      Generate Report
+                    </Button>
+                  </>
+                )}
+                
                 <FormControl sx={{ minWidth: 150 }}>
                   <InputLabel>Site</InputLabel>
                   <Select
@@ -300,12 +462,6 @@ const Reports = () => {
                     <MenuItem value="site3">Site C</MenuItem>
                   </Select>
                 </FormControl>
-                <TextField
-                  label="Date Range"
-                  type="date"
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ minWidth: 150 }}
-                />
               </Box>
             </Paper>
           </Zoom>

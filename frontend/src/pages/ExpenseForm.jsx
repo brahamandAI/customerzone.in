@@ -135,12 +135,47 @@ const ExpenseForm = () => {
     fetchNextExpenseNumber();
   }, []);
 
-  // Fetch sites
+  // Fetch sites based on user role
   useEffect(() => {
-    siteAPI.getAll().then(res => {
-      setSites(res.data.data || []);
-    });
-  }, []);
+    const fetchSites = async () => {
+      try {
+        const res = await siteAPI.getAll();
+        let availableSites = res.data.data || [];
+        
+        // Filter sites based on user role
+        if (user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver') {
+          // Submitters, L1, and L2 approvers can only see their assigned site
+          if (user?.site) {
+            const userSiteId = typeof user.site === 'string' ? user.site : user.site._id;
+            availableSites = availableSites.filter(site => site._id === userSiteId);
+          } else {
+            // If user has no site assigned, show no sites
+            availableSites = [];
+          }
+        }
+        // L3 approvers and finance can see all sites
+        
+        setSites(availableSites);
+        
+        // Auto-select user's site for submitters and L1/L2 approvers
+        if ((user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver') && user?.site) {
+          const userSiteId = typeof user.site === 'string' ? user.site : user.site._id;
+          const userSite = availableSites.find(site => site._id === userSiteId);
+          if (userSite) {
+            setFormData(prev => ({
+              ...prev,
+              siteId: userSite._id
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching sites:', error);
+        setSites([]);
+      }
+    };
+    
+    fetchSites();
+  }, [user]);
 
   // Handle video stream when camera opens
   useEffect(() => {
@@ -390,6 +425,23 @@ const ExpenseForm = () => {
       setLoading(false);
       return;
     }
+
+    // Validate site selection for restricted roles
+    if ((user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver') && !formData.siteId) {
+      setError('You must have an assigned site to submit expenses');
+      setLoading(false);
+      return;
+    }
+
+    // Additional validation for site access
+    if (user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver') {
+      const userSiteId = typeof user.site === 'string' ? user.site : user.site?._id;
+      if (formData.siteId && formData.siteId !== userSiteId) {
+        setError('You can only submit expenses for your assigned site');
+        setLoading(false);
+        return;
+      }
+    }
     
     try {
       // First upload attachments if any
@@ -427,7 +479,7 @@ const ExpenseForm = () => {
         category: formData.category || 'Vehicle KM', // Default to Vehicle KM if not selected
         expenseDate: new Date().toISOString(),
         submittedById: user?._id || 'current-user-id', // Use current logged in user
-        siteId: typeof user?.site === 'string' ? user.site : (user?.site?._id || user?.site?.id || user?.site) || formData.siteId, // Use current user's site
+        siteId: formData.siteId || (typeof user?.site === 'string' ? user.site : (user?.site?._id || user?.site?.id || user?.site)), // Use selected site or user's site as fallback
         department: user?.department || formData.department || "Operations",
         vehicleKm: {
           startKm: 0,
@@ -636,15 +688,21 @@ const ExpenseForm = () => {
                       <Grid item xs={12} md={6}>
                         <FormControl fullWidth>
                           <Select
-                            value={formData.site || ''}
-                            onChange={handleInputChange('site')}
+                            value={formData.siteId || ''}
+                            onChange={handleInputChange('siteId')}
                             required
                             displayEmpty
+                            disabled={user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver'}
                             renderValue={(selected) => {
                               if (!selected) {
-                                return <em style={{ color: darkMode ? 'rgba(255, 255, 255, 0.38)' : 'rgba(0, 0, 0, 0.38)' }}>Site</em>;
+                                return <em style={{ color: darkMode ? 'rgba(255, 255, 255, 0.38)' : 'rgba(0, 0, 0, 0.38)' }}>
+                                  {user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver' 
+                                    ? 'Your Assigned Site' 
+                                    : 'Site'}
+                                </em>;
                               }
-                              return selected;
+                              const selectedSite = sites.find(site => site._id === selected);
+                              return selectedSite ? selectedSite.name : selected;
                             }}
                             sx={{
                               backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
@@ -660,6 +718,10 @@ const ExpenseForm = () => {
                               },
                               '& .MuiSelect-icon': {
                                 color: darkMode ? '#b0b0b0' : '#666666',
+                              },
+                              '&.Mui-disabled': {
+                                backgroundColor: darkMode ? '#1a1a1a' : '#f5f5f5',
+                                color: darkMode ? '#888888' : '#666666',
                               },
                             }}
                             MenuProps={{
@@ -677,12 +739,29 @@ const ExpenseForm = () => {
                             }}
                           >
                             <MenuItem value="" disabled>
-                              <em>Site</em>
+                              <em>
+                                {user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver' 
+                                  ? 'Your Assigned Site' 
+                                  : 'Site'}
+                              </em>
                             </MenuItem>
                             {sites.map(site => (
-                              <MenuItem key={site._id} value={site.code}>{site.name}</MenuItem>
+                              <MenuItem key={site._id} value={site._id}>{site.name}</MenuItem>
                             ))}
                           </Select>
+                          {(user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver') && (
+                            <Typography variant="caption" sx={{ 
+                              color: darkMode ? '#888888' : '#666666', 
+                              mt: 0.5, 
+                              display: 'block',
+                              fontStyle: 'italic'
+                            }}>
+                              {user?.site 
+                                ? 'You can only submit expenses for your assigned site'
+                                : 'You need to be assigned to a site to submit expenses. Please contact your administrator.'
+                              }
+                            </Typography>
+                          )}
                         </FormControl>
                       </Grid>
                       
@@ -1043,9 +1122,13 @@ const ExpenseForm = () => {
                               background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
                               '&:hover': { background: 'linear-gradient(45deg, #5a6fd8 30%, #6a4190 90%)' }
                             }}
-                            disabled={loading}
+                            disabled={loading || ((user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver') && !user?.site)}
                           >
-                            {loading ? <CircularProgress size={24} color="inherit" /> : 'Submit for Approval'}
+                            {loading ? <CircularProgress size={24} color="inherit" /> : 
+                              ((user?.role === 'submitter' || user?.role === 'l1_approver' || user?.role === 'l2_approver') && !user?.site) 
+                                ? 'No Site Assigned' 
+                                : 'Submit for Approval'
+                            }
                           </Button>
                         </Box>
                       </Grid>

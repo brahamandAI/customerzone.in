@@ -264,6 +264,18 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
       });
     }
 
+    // Validate site access for restricted roles
+    const userRole = req.user.role;
+    if (userRole === 'submitter' || userRole === 'l1_approver' || userRole === 'l2_approver') {
+      const userSiteId = req.user.site;
+      if (siteId !== userSiteId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only submit expenses for your assigned site'
+        });
+      }
+    }
+
     // Check for duplicate expense number (exclude reserved/temporary expenses)
     const existingExpense = await Expense.findOne({ 
       expenseNumber,

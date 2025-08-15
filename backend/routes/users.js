@@ -379,7 +379,7 @@ router.get('/:userId', protect, async (req, res) => {
     const { userId } = req.params;
     
     // Users can only access their own data unless they're admin
-    if (req.user._id.toString() !== userId && req.user.role !== 'l3_approver') {
+    if (req.user._id.toString() !== userId && req.user.role !== 'l3_approver' && req.user.role !== 'finance') {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -416,10 +416,31 @@ router.get('/:userId', protect, async (req, res) => {
 router.put('/:userId', protect, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { name, phone, department, avatar, bankDetails } = req.body;
+    const { 
+      name, 
+      phone, 
+      department, 
+      avatar, 
+      bankDetails, 
+      role,
+      email,
+      employeeId,
+      address,
+      // Notification preferences
+      emailNotifications,
+      pushNotifications,
+      smsNotifications,
+      // Permissions
+      canCreateExpenses,
+      canApproveExpenses,
+      canManageUsers,
+      canManageSites,
+      canViewReports,
+      canManageBudgets
+    } = req.body;
 
     // Users can only update their own profile unless they're admin
-    if (req.user._id.toString() !== userId && req.user.role !== 'l3_approver') {
+    if (req.user._id.toString() !== userId && req.user.role !== 'l3_approver' && req.user.role !== 'finance') {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -435,12 +456,41 @@ router.put('/:userId', protect, async (req, res) => {
       });
     }
 
-    // Update fields
+    // Update basic fields
     if (name) user.name = name;
     if (phone) user.phone = phone;
     if (department) user.department = department;
     if (avatar) user.avatar = avatar;
+    if (email) user.email = email;
+    if (employeeId) user.employeeId = employeeId;
+    if (address) user.address = { ...user.address, ...address };
     if (bankDetails) user.bankDetails = { ...user.bankDetails, ...bankDetails };
+
+    // Update role (only for admin users)
+    if (role && (req.user.role === 'l3_approver' || req.user.role === 'finance')) {
+      user.role = role;
+    }
+
+    // Update notification preferences
+    if (emailNotifications !== undefined) {
+      user.preferences.notifications.email = emailNotifications;
+    }
+    if (pushNotifications !== undefined) {
+      user.preferences.notifications.push = pushNotifications;
+    }
+    if (smsNotifications !== undefined) {
+      user.preferences.notifications.sms = smsNotifications;
+    }
+
+    // Update permissions (only for admin users)
+    if (req.user.role === 'l3_approver' || req.user.role === 'finance') {
+      if (canCreateExpenses !== undefined) user.permissions.canCreateExpenses = canCreateExpenses;
+      if (canApproveExpenses !== undefined) user.permissions.canApproveExpenses = canApproveExpenses;
+      if (canManageUsers !== undefined) user.permissions.canManageUsers = canManageUsers;
+      if (canManageSites !== undefined) user.permissions.canManageSites = canManageSites;
+      if (canViewReports !== undefined) user.permissions.canViewReports = canViewReports;
+      if (canManageBudgets !== undefined) user.permissions.canManageBudgets = canManageBudgets;
+    }
 
     await user.save();
 
