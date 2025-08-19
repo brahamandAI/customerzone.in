@@ -76,8 +76,18 @@ router.post('/create', protect, authorize('l3_approver', 'finance'), async (req,
 // Get all sites with budget information
 router.get('/all', async (req, res) => {
   try {
-    const sites = await Site.find({ isActive: true })
-      .select('name code isActive createdAt');
+    const { includeInactive = false } = req.query;
+    
+    let query = {};
+    if (!includeInactive) {
+      query.isActive = true; // Only show active sites by default
+    }
+    
+    const sites = await Site.find(query)
+      .select('name code isActive createdAt location budget')
+      .sort({ createdAt: -1 }); // Sort by newest first
+
+    console.log(`📋 Fetched ${sites.length} sites (includeInactive: ${includeInactive})`);
 
     res.json({
       success: true,
@@ -247,6 +257,9 @@ router.put('/:siteId', protect, authorize('l3_approver', 'finance'), async (req,
 router.delete('/:siteId', protect, authorize('l3_approver', 'finance'), async (req, res) => {
   try {
     const { siteId } = req.params;
+    const { hardDelete = false } = req.query; // Allow hard delete option
+    
+    console.log('🗑️ Deleting site:', { siteId, hardDelete });
     
     const site = await Site.findById(siteId);
     if (!site) {
@@ -263,31 +276,43 @@ router.delete('/:siteId', protect, authorize('l3_approver', 'finance'), async (r
     const usersWithSite = await User.find({ site: siteId });
     const expensesWithSite = await Expense.find({ site: siteId });
     
+    console.log('🔍 Site dependencies:', {
+      usersCount: usersWithSite.length,
+      expensesCount: expensesWithSite.length
+    });
+    
     if (usersWithSite.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot delete site. There are users associated with this site.'
+        message: `Cannot delete site. There are ${usersWithSite.length} users associated with this site. Please reassign or delete these users first.`
       });
     }
     
     if (expensesWithSite.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot delete site. There are expenses associated with this site.'
+        message: `Cannot delete site. There are ${expensesWithSite.length} expenses associated with this site. Please delete these expenses first.`
       });
     }
 
-    // Soft delete by setting isActive to false
-    site.isActive = false;
-    await site.save();
+    if (hardDelete === 'true') {
+      // Hard delete - completely remove from database
+      await Site.findByIdAndDelete(siteId);
+      console.log('🗑️ Hard deleted site:', siteId);
+    } else {
+      // Soft delete by setting isActive to false
+      site.isActive = false;
+      await site.save();
+      console.log('🗑️ Soft deleted site:', siteId);
+    }
 
     res.json({
       success: true,
-      message: 'Site deleted successfully'
+      message: hardDelete === 'true' ? 'Site permanently deleted' : 'Site deleted successfully'
     });
 
   } catch (error) {
-    console.error('Error deleting site:', error);
+    console.error('❌ Error deleting site:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',

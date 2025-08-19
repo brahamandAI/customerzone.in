@@ -49,16 +49,53 @@ const ManageSites = () => {
   }, [search, sites]);
 
   const handleDelete = async (siteId) => {
-    if (window.confirm('Are you sure you want to delete this site?')) {
+    const site = sites.find(s => s._id === siteId);
+    const siteName = site?.name || 'this site';
+    
+    // Show confirmation dialog with more details
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${siteName}"?\n\n` +
+      `This action will:\n` +
+      `• Remove the site from the system\n` +
+      `• Cannot be undone\n\n` +
+      `Click OK to proceed or Cancel to abort.`
+    );
+    
+    if (confirmed) {
       try {
-        await siteAPI.delete(siteId);
-        // Refresh the sites list
-        const res = await siteAPI.getAll();
-        setSites(res.data.data || []);
-        setFilteredSites(res.data.data || []);
+        console.log('🗑️ Deleting site:', siteId);
+        
+        // First try soft delete
+        const response = await siteAPI.delete(siteId);
+        
+        if (response.data.success) {
+          console.log('✅ Site deleted successfully');
+          
+          // Show success message
+          alert(`Site "${siteName}" has been deleted successfully!`);
+          
+          // Refresh the sites list
+          const res = await siteAPI.getAll();
+          setSites(res.data.data || []);
+          setFilteredSites(res.data.data || []);
+        }
       } catch (err) {
-        console.error('Error deleting site:', err);
-        alert('Failed to delete site');
+        console.error('❌ Error deleting site:', err);
+        
+        // Show detailed error message
+        const errorMessage = err.response?.data?.message || 'Failed to delete site';
+        alert(`Error deleting site: ${errorMessage}`);
+        
+        // If it's a dependency error, show helpful message
+        if (errorMessage.includes('users associated') || errorMessage.includes('expenses associated')) {
+          alert(
+            `Cannot delete site because it has dependencies.\n\n` +
+            `Please:\n` +
+            `1. Reassign or delete all users from this site\n` +
+            `2. Delete all expenses associated with this site\n` +
+            `3. Then try deleting the site again.`
+          );
+        }
       }
     }
   };

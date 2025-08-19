@@ -174,7 +174,20 @@ exports.checkSiteAccess = asyncHandler(async (req, res, next) => {
     });
   }
 
-  if (req.user.site._id.toString() !== siteId.toString()) {
+  // Handle both cases: req.user.site can be ObjectId or populated site object
+  let userSiteId;
+  if (typeof req.user.site === 'string' || (req.user.site && req.user.site._bsontype === 'ObjectID')) {
+    userSiteId = req.user.site.toString();
+  } else if (req.user.site && req.user.site._id) {
+    userSiteId = req.user.site._id.toString();
+  } else {
+    return res.status(403).json({
+      success: false,
+      message: 'No site assigned to user'
+    });
+  }
+  
+  if (userSiteId !== siteId.toString()) {
     return res.status(403).json({
       success: false,
       message: 'You can only access data from your assigned site'

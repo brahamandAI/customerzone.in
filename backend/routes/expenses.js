@@ -267,8 +267,33 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
     // Validate site access for restricted roles
     const userRole = req.user.role;
     if (userRole === 'submitter' || userRole === 'l1_approver' || userRole === 'l2_approver') {
-      const userSiteId = req.user.site;
-      if (siteId !== userSiteId) {
+      const userSite = req.user.site;
+      
+      // Handle both cases: userSite can be ObjectId or populated site object
+      let userSiteId;
+      if (typeof userSite === 'string' || (userSite && userSite._bsontype === 'ObjectID')) {
+        userSiteId = userSite.toString();
+      } else if (userSite && userSite._id) {
+        userSiteId = userSite._id.toString();
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: 'No site assigned to user'
+        });
+      }
+      
+      const siteIdString = siteId.toString();
+      
+      console.log('🔍 Site validation debug:', {
+        userRole,
+        userSiteType: typeof userSite,
+        userSiteId: userSiteId,
+        siteId: siteId,
+        siteIdString: siteIdString,
+        match: userSiteId === siteIdString
+      });
+      
+      if (userSiteId !== siteIdString) {
         return res.status(403).json({
           success: false,
           message: 'You can only submit expenses for your assigned site'

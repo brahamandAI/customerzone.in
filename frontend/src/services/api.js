@@ -102,7 +102,7 @@ export const siteAPI = {
   getById: (id) => api.get(`/sites/${id}`),
   create: (data) => api.post('/sites/create', data),
   update: (id, data) => api.put(`/sites/${id}`, data),
-  delete: (id) => api.delete(`/sites/${id}`),
+  delete: (id, hardDelete = false) => api.delete(`/sites/${id}?hardDelete=${hardDelete}`),
   updateBudget: (id, data) => api.put(`/sites/${id}/budget`, data),
   getBudgetAlerts: () => api.get('/sites/budget-alerts'),
 };

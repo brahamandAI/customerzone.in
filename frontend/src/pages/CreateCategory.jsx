@@ -43,6 +43,11 @@ const CreateCategory = () => {
       } else {
         // For other users, use their assigned site
         const userSiteId = user?.site?._id || user?.siteId;
+        console.log('🔍 CreateCategory site assignment debug:', {
+          userSiteId,
+          userSiteType: typeof userSiteId,
+          userSite: user?.site
+        });
         if (userSiteId) {
           setFormData(prev => ({ ...prev, siteId: userSiteId }));
         }
