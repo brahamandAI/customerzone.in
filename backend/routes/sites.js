@@ -300,9 +300,9 @@ router.delete('/:siteId', protect, authorize('l3_approver', 'finance'), async (r
       await Site.findByIdAndDelete(siteId);
       console.log('🗑️ Hard deleted site:', siteId);
     } else {
-      // Soft delete by setting isActive to false
-      site.isActive = false;
-      await site.save();
+    // Soft delete by setting isActive to false
+    site.isActive = false;
+    await site.save();
       console.log('🗑️ Soft deleted site:', siteId);
     }
 

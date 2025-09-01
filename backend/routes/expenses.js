@@ -641,7 +641,7 @@ router.get('/:expenseId/attachments', protect, async (req, res) => {
 });
 
 // Download attachment file
-router.get('/:expenseId/attachments/:attachmentId/download', async (req, res) => {
+router.get('/:expenseId/attachments/:attachmentId/download', protect, async (req, res) => {
   try {
     const { expenseId, attachmentId } = req.params;
     
@@ -684,7 +684,14 @@ router.get('/:expenseId/attachments/:attachmentId/download', async (req, res) =>
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    
+    // For PDFs, allow iframe embedding for preview
+    if (attachment.mimetype && attachment.mimetype.includes('pdf')) {
+      res.setHeader('X-Frame-Options', 'ALLOWALL');
+      res.setHeader('Content-Security-Policy', "frame-ancestors 'self' *");
+    } else {
+      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    }
 
     // Stream the file
     const fileStream = fs.createReadStream(filePath);

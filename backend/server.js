@@ -57,7 +57,7 @@ app.use(helmet({
       fontSrc: ["'self'", "fonts.gstatic.com"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:", "http://localhost:5001"],
-      frameSrc: ["'self'", "http://localhost:3000", "http://localhost:5001"],
+      frameSrc: ["'self'", "http://localhost:3000", "http://localhost:5001", "blob:", "data:"],
       frameAncestors: ["'self'", "http://localhost:3000"],
       mediaSrc: ["'self'", "blob:", "data:"],
       connectSrc: ["'self'", "http://localhost:3000", "http://localhost:5001"],
@@ -230,6 +230,7 @@ const notificationRoutes = require('./routes/notifications');
 const categoryRoutes = require('./routes/categories');
 const paymentRoutes = require('./routes/payments');
 const testNotificationRoutes = require('./routes/test-notifications');
+const financeRoutes = require('./routes/finance');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -242,6 +243,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/test-notifications', testNotificationRoutes);
+app.use('/api/finance', financeRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

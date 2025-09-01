@@ -74,10 +74,10 @@ const ManageSites = () => {
           // Show success message
           alert(`Site "${siteName}" has been deleted successfully!`);
           
-          // Refresh the sites list
-          const res = await siteAPI.getAll();
-          setSites(res.data.data || []);
-          setFilteredSites(res.data.data || []);
+        // Refresh the sites list
+        const res = await siteAPI.getAll();
+        setSites(res.data.data || []);
+        setFilteredSites(res.data.data || []);
         }
       } catch (err) {
         console.error('❌ Error deleting site:', err);

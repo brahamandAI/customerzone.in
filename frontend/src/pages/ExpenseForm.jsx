@@ -13,6 +13,7 @@ import { expenseAPI, siteAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import AttachmentViewer from '../components/AttachmentViewer';
+import AIExpenseAssistant from '../components/AIExpenseAssistant';
 
 const ExpenseForm = () => {
   const navigate = useNavigate();
@@ -207,10 +208,10 @@ const ExpenseForm = () => {
             const matchingSite = availableSites.find(site => site._id.toString() === userSiteId.toString());
             if (matchingSite) {
               console.log('✅ Found matching site:', matchingSite.name);
-              setFormData(prev => ({
-                ...prev,
+            setFormData(prev => ({
+              ...prev,
                 siteId: matchingSite._id
-              }));
+            }));
             } else {
               console.log('❌ No matching site found for userSiteId:', userSiteId);
             }
@@ -301,6 +302,47 @@ const ExpenseForm = () => {
       ...formData,
       [field]: event.target.value
     });
+  };
+
+  // Handle AI Assistant data extraction
+  const handleAIExpenseDataExtracted = (extractedData) => {
+    console.log('🎯 AI Assistant extracted data:', extractedData);
+    
+    setFormData(prev => ({
+      ...prev,
+      title: extractedData.title || prev.title,
+      amount: extractedData.amount ? extractedData.amount.toString() : prev.amount,
+      category: extractedData.category || prev.category,
+      siteId: extractedData.siteId || prev.siteId,
+      expenseDate: extractedData.date || prev.expenseDate,
+      priority: extractedData.priority || prev.priority,
+      paymentMethod: extractedData.paymentMethod || prev.paymentMethod,
+      vendor: extractedData.vendor || prev.vendor,
+      description: extractedData.description || prev.description
+    }));
+    
+    // Handle attached files from AI Assistant
+    if (extractedData.attachedFiles && extractedData.attachedFiles.length > 0) {
+      console.log('📎 AI Assistant attached files:', extractedData.attachedFiles);
+      const newAttachments = extractedData.attachedFiles.map(file => ({
+        id: Date.now() + Math.random(),
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        mimetype: file.type,
+        originalName: file.name,
+        source: 'ai-assistant',
+        file: file
+      }));
+      setAttachments(prev => [...prev, ...newAttachments]);
+    }
+    
+    // Show success message
+    const fileMessage = extractedData.attachedFiles && extractedData.attachedFiles.length > 0 
+      ? ` with ${extractedData.attachedFiles.length} file(s)` 
+      : '';
+    setSuccess(`AI Assistant has filled your expense form${fileMessage}! Please review and submit.`);
+    setOpenSnackbar(true);
   };
 
   const handleFileUpload = (event) => {
@@ -1002,8 +1044,8 @@ const ExpenseForm = () => {
                           fullWidth
                           label="Date"
                           type="date"
-                          value={formData.date}
-                          onChange={handleInputChange('date')}
+                           value={formData.expenseDate}
+                           onChange={handleInputChange('expenseDate')}
                           required
                           InputLabelProps={{ shrink: true }}
                         />
@@ -1015,7 +1057,58 @@ const ExpenseForm = () => {
                           label="Vendor/Supplier"
                           value={formData.vendor}
                           onChange={handleInputChange('vendor')}
-                          required
+                           placeholder="Enter vendor/supplier name"
+                           helperText="Enter the vendor or supplier name"
+                           InputLabelProps={{
+                             shrink: true,
+                             style: {
+                               color: darkMode ? '#b0b0b0' : '#666666',
+                               fontSize: '0.875rem',
+                               fontWeight: 500
+                             }
+                           }}
+                           sx={{
+                             '& .MuiOutlinedInput-root': {
+                               backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                               color: darkMode ? '#e0e0e0' : '#333333',
+                               borderRadius: 2,
+                               paddingTop: '8px',
+                               paddingBottom: '8px',
+                               '& fieldset': {
+                                 borderColor: darkMode ? '#333333' : '#e0e0e0',
+                               },
+                               '&:hover fieldset': {
+                                 borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                               },
+                               '&.Mui-focused fieldset': {
+                                 borderColor: darkMode ? '#4fc3f7' : '#667eea',
+                               },
+                               '&.Mui-focused .MuiInputLabel-root': {
+                                 color: darkMode ? '#4fc3f7' : '#667eea',
+                               },
+                             },
+                             '& .MuiInputLabel-root': {
+                               color: darkMode ? '#b0b0b0' : '#666666',
+                               transform: 'translate(14px, 8px) scale(1)',
+                               '&.Mui-focused': {
+                                 color: darkMode ? '#4fc3f7' : '#667eea',
+                                 transform: 'translate(14px, -9px) scale(0.75)',
+                               },
+                               '&.MuiInputLabel-shrink': {
+                                 transform: 'translate(14px, -9px) scale(0.75)',
+                               },
+                             },
+                             '& .MuiInputBase-input': {
+                               color: darkMode ? '#e0e0e0' : '#333333',
+                               padding: '12px 14px',
+                               fontSize: '0.875rem',
+                             },
+                             '& .MuiFormHelperText-root': {
+                               color: darkMode ? '#b0b0b0' : '#666666',
+                               marginLeft: '14px',
+                               marginRight: '14px',
+                             },
+                           }}
                         />
                       </Grid>
                       
@@ -1638,6 +1731,13 @@ const ExpenseForm = () => {
           {error}
         </Alert>
       )}
+
+       {/* AI Expense Assistant */}
+       <AIExpenseAssistant
+         onExpenseDataExtracted={handleAIExpenseDataExtracted}
+         user={user}
+         sites={sites}
+       />
     </Box>
   );
 };

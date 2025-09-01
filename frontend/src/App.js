@@ -29,6 +29,7 @@ import EditUser from './pages/EditUser';
 import EditSite from './pages/EditSite';
 import ResetPassword from './pages/ResetPassword';
 import AllSitesApproval from './pages/AllSitesApproval';
+import FinanceAIChat from './components/FinanceAIChat';
 
 // PrivateRoute component to protect routes
 const PrivateRoute = ({ children }) => {
@@ -45,12 +46,16 @@ const PrivateRoute = ({ children }) => {
 
 function Layout() {
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const hideNav = !isAuthenticated || location.pathname === '/login';
 
   return (
     <>
       {!hideNav && <NavBar />}
+      {/* Show Finance AI Chat only for finance/admin users */}
+      {isAuthenticated && ['finance', 'admin', 'l3_approver', 'l4_approver'].includes(user?.role) && (
+        <FinanceAIChat />
+      )}
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Paper, Grid, Fade, Zoom, Button, Chip, Avatar, List, ListItem, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Snackbar, Alert, Tabs, Tab, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Box, Typography, Paper, Grid, Fade, Zoom, Button, Chip, Avatar, List, ListItem, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Snackbar, Alert, Tabs, Tab, FormControl, InputLabel, Select, MenuItem, IconButton, Tooltip } from '@mui/material';
 import ApprovalIcon from '@mui/icons-material/Approval';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -44,6 +44,8 @@ const Approval = () => {
     currentMonthApprovedAmount: 0
   });
   const [activeTab, setActiveTab] = useState(0);
+  const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
+  const [selectedApprovalForAttachments, setSelectedApprovalForAttachments] = useState(null);
   const { user, getUserRole } = useAuth();
   const { socket } = useSocket();
   const { darkMode } = useTheme();
@@ -381,6 +383,11 @@ const Approval = () => {
     setAmountChangeReason('');
     setSelectedPriority('medium'); // Reset priority to default when opening dialog
     setOpenDialog(true);
+  };
+
+  const handleOpenAttachmentDialog = (approval) => {
+    setSelectedApprovalForAttachments(approval);
+    setAttachmentDialogOpen(true);
   };
 
   const handlePriorityChange = (approvalId, priority) => {
@@ -766,11 +773,18 @@ const Approval = () => {
                             </Box>
                           )}
                           {approval.attachments > 0 && (
-                            <Chip 
-                              label={`${approval.attachments} attachment${approval.attachments > 1 ? 's' : ''}`}
+                            <Tooltip title={`${approval.attachments} attachment${approval.attachments > 1 ? 's' : ''}`}>
+                              <IconButton 
                               size="small"
-                              variant="outlined"
-                            />
+                                onClick={() => handleOpenAttachmentDialog(approval)}
+                                sx={{ 
+                                  color: '#ff9800',
+                                  '&:hover': { bgcolor: 'rgba(255, 152, 0, 0.1)' }
+                                }}
+                              >
+                                <AttachFileIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           )}
                           <Chip 
                             label={getApprovalLevelName(approval.approvalLevel)}
@@ -1090,6 +1104,34 @@ const Approval = () => {
               </Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Attachment Dialog */}
+      <Dialog 
+        open={attachmentDialogOpen} 
+        onClose={() => setAttachmentDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <AttachFileIcon sx={{ mr: 2, color: '#ff9800' }} />
+            <Typography variant="h6">
+              Attachments - {selectedApprovalForAttachments?.expenseNumber}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedApprovalForAttachments && (
+            <AttachmentViewer 
+              expenseId={selectedApprovalForAttachments.id || selectedApprovalForAttachments._id}
+              attachments={selectedApprovalForAttachments.attachments || []}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAttachmentDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 

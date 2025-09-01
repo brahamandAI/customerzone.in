@@ -75,6 +75,8 @@ const AllSitesApproval = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedSite, setSelectedSite] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
+  const [selectedExpenseForAttachments, setSelectedExpenseForAttachments] = useState(null);
   const { user, getUserRole } = useAuth();
   const { socket } = useSocket();
   const { darkMode } = useTheme();
@@ -253,6 +255,11 @@ const AllSitesApproval = () => {
   const handleOpenDialog = (expense) => {
     setSelectedExpense(expense);
     setOpenDialog(true);
+  };
+
+  const handleOpenAttachmentDialog = (expense) => {
+    setSelectedExpenseForAttachments(expense);
+    setAttachmentDialogOpen(true);
   };
 
   const getStatusColor = (status) => {
@@ -587,7 +594,10 @@ const AllSitesApproval = () => {
                               
                               {expense.attachments > 0 && (
                                 <Tooltip title={`${expense.attachments} attachments`}>
-                                  <IconButton sx={{ color: '#ff9800' }}>
+                                  <IconButton 
+                                    sx={{ color: '#ff9800' }}
+                                    onClick={() => handleOpenAttachmentDialog(expense)}
+                                  >
                                     <AttachFileIcon />
                                   </IconButton>
                                 </Tooltip>
@@ -678,6 +688,34 @@ const AllSitesApproval = () => {
           >
             Approve
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Attachment Dialog */}
+      <Dialog 
+        open={attachmentDialogOpen} 
+        onClose={() => setAttachmentDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <AttachFileIcon sx={{ mr: 2, color: '#ff9800' }} />
+            <Typography variant="h6">
+              Attachments - {selectedExpenseForAttachments?.expenseNumber}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedExpenseForAttachments && (
+            <AttachmentViewer 
+              expenseId={selectedExpenseForAttachments.id || selectedExpenseForAttachments._id}
+              attachments={selectedExpenseForAttachments.attachments || []}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAttachmentDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
