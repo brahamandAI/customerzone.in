@@ -100,8 +100,8 @@ const Approval = () => {
         
         // Filter based on role
         if (userRole === 'L1_APPROVER') {
-          filteredExpenses = response.data.data.filter(expense => expense.status === 'submitted');
-          console.log('L1 Approver - Filtered expenses (submitted):', filteredExpenses);
+          filteredExpenses = response.data.data.filter(expense => expense.status === 'submitted' || expense.status === 'under_review');
+          console.log('L1 Approver - Filtered expenses (submitted + under_review):', filteredExpenses);
         } else if (userRole === 'L2_APPROVER') {
           filteredExpenses = response.data.data.filter(expense => expense.status === 'approved_l1');
           console.log('L2 Approver - Filtered expenses (approved_l1):', filteredExpenses);
@@ -129,7 +129,7 @@ const Approval = () => {
               submitter: expense.submittedBy?.name || 'Unknown User',
           date: new Date(expense.expenseDate).toISOString().split('T')[0],
           description: expense.description,
-                      status: expense.status === 'submitted' || expense.status === 'approved_l1' || expense.status === 'approved_l2' || expense.status === 'approved_l3'
+                      status: expense.status === 'submitted' || expense.status === 'under_review' || expense.status === 'approved_l1' || expense.status === 'approved_l2' || expense.status === 'approved_l3'
           ? 'pending' 
           : expense.status.toLowerCase(),
           approvalLevel: expense.status === 'submitted' ? 'L1' :
@@ -139,7 +139,9 @@ const Approval = () => {
           priority: expense.priority || 'normal',
           attachments: expense.attachments?.length || 0,
           modifiedAmount: expense.modifiedAmount,
-          approvalComments: expense.approvalHistory || []
+          approvalComments: expense.approvalHistory || [],
+          policyFlags: expense.policyFlags || [],
+          riskScore: expense.riskScore || 0
             };
             
             // Additional logging for Finance users
@@ -716,7 +718,22 @@ const Approval = () => {
                               fontWeight: 600
                             }}
                           />
+                          {approval.policyFlags && approval.policyFlags.length > 0 && (
+                            <Chip 
+                              label={`Flagged (${approval.policyFlags.length})`} 
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                            />
+                          )}
                         </Box>
+                        {approval.policyFlags && approval.policyFlags.length > 0 && (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+                            {approval.policyFlags.map((flag, i) => (
+                              <Chip key={i} label={flag} size="small" sx={{ bgcolor: 'rgba(244,67,54,0.08)', color: '#f44336' }} />
+                            ))}
+                          </Box>
+                        )}
                         
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 2 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

@@ -90,7 +90,8 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
     // Role-based filtering (same logic as approval page)
     let statusFilter = {};
     if (userRole === 'l1_approver') {
-      statusFilter = { status: 'submitted' };
+      // Include newly-created flagged items that are marked under_review
+      statusFilter = { status: { $in: ['submitted', 'under_review'] } };
     } else if (userRole === 'l2_approver') {
       statusFilter = { status: 'approved_l1' };
     } else if (userRole === 'l3_approver') {
@@ -141,11 +142,11 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
       } : 'Site not found'
     });
 
-    // Calculate real-time budget utilization for current month
-    const currentMonthExpenses = await Expense.aggregate([
+    // Calculate submitter dashboard breakdown for current month
+    const breakdownAgg = await Expense.aggregate([
       {
         $match: {
-          site: userSite,
+          submittedBy: userId,
           isActive: true,
           isDeleted: false,
           expenseDate: { $gte: currentMonth, $lt: nextMonth }
@@ -154,29 +155,60 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
       {
         $group: {
           _id: null,
-          totalSpent: { $sum: '$amount' }
+          approvedAmount: {
+            $sum: {
+              $cond: [
+                { $in: ['$status', ['approved', 'reimbursed', 'payment_processed']] },
+                '$amount',
+                0
+              ]
+            }
+          },
+          pendingAmount: {
+            $sum: {
+              $cond: [
+                { $in: ['$status', ['submitted', 'under_review', 'approved_l1', 'approved_l2', 'approved_l3', 'approved_finance']] },
+                '$amount',
+                0
+              ]
+            }
+          },
+          totalSpentAllStatuses: { $sum: '$amount' }
         }
       }
     ]);
 
-    const monthlySpent = currentMonthExpenses[0]?.totalSpent || 0;
+    const approvedAmount = breakdownAgg[0]?.approvedAmount || 0;
+    const pendingAmount = breakdownAgg[0]?.pendingAmount || 0;
+    const monthlySpent = breakdownAgg[0]?.totalSpentAllStatuses || 0;
     const monthlyBudget = siteInfo?.budget?.monthly || 0;
-    const remainingBudget = Math.max(0, monthlyBudget - monthlySpent);
-    const utilization = monthlyBudget > 0 ? Math.round((monthlySpent / monthlyBudget) * 100) : 0;
+    const remainingBudget = Math.max(0, monthlyBudget - approvedAmount);
+    const approvedUtilization = monthlyBudget > 0 ? Math.round((approvedAmount / monthlyBudget) * 100) : 0;
+    const projectedUtilization = monthlyBudget > 0 ? Math.round(((approvedAmount + pendingAmount) / monthlyBudget) * 100) : 0;
 
     console.log('📊 Real-time budget calculation:', {
       monthlyBudget,
       monthlySpent,
       remainingBudget,
-      utilization
+      approvedUtilization,
+      projectedUtilization
     });
     
     dashboardData.recentExpenses = recentExpenses;
     dashboardData.siteBudget = {
         monthly: monthlyBudget,
-        used: monthlySpent,
+        used: approvedAmount, // show approved usage in primary card
         remaining: remainingBudget,
-        utilization: utilization
+        utilization: approvedUtilization,
+        projectedUtilization: projectedUtilization,
+        pending: pendingAmount
+    };
+    dashboardData.submitterBudgetBreakdown = {
+      approvedAmount,
+      pendingAmount,
+      remainingBudget,
+      approvedUtilization,
+      projectedUtilization
     };
     dashboardData.vehicleKmLimit = siteInfo?.vehicleKmLimit;
 
@@ -1408,18 +1440,9 @@ async function getRecentActivity() {
 
 // Helper function to get notifications count
 async function getNotificationsCount(userId) {
-  // This would typically query a notifications collection
-  // For now, we'll return pending approvals count
-  const pendingCount = await Expense.countDocuments({
-    'pendingApprovers.approver': userId,
-    isActive: true,
-    isDeleted: false
-  });
-
-  return {
-    total: pendingCount,
-    unread: pendingCount // Assuming all pending are unread
-  };
+  // Align notifications with actual pending approvals stored in PendingApprovers collection
+  const count = await PendingApprover.countDocuments({ approver: userId, status: 'pending' });
+  return { total: count, unread: count };
 }
 
 // Helper function to get average processing time

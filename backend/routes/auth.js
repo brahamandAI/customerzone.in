@@ -8,6 +8,7 @@ const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const googleAuthService = require('../services/googleAuth.service');
 const emailService = require('../services/emailService');
+const { AppError } = require('../utils/errors');
 
 const router = express.Router();
 
@@ -583,4 +584,50 @@ router.post('/google', asyncHandler(async (req, res) => {
   }
 }));
 
+// @desc    Send OTP to email for login
+// @route   POST /api/auth/send-otp
+// @access  Public
+router.post('/send-otp', [
+  body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errorCode: 'VALIDATION_ERROR', message: 'Valid email required' });
+  }
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ success: false, errorCode: 'NOT_FOUND', message: 'User not found' });
+  }
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  user.otpCode = otp;
+  user.otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+  await user.save();
+  try { await emailService.sendOtpEmail(email, otp); } catch {}
+  res.json({ success: true, message: 'OTP sent' });
+}));
+
+// @desc    Verify OTP and login
+// @route   POST /api/auth/verify-otp
+// @access  Public
+router.post('/verify-otp', [
+  body('email').isEmail().normalizeEmail(),
+  body('otp').isLength({ min: 4 })
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errorCode: 'VALIDATION_ERROR', message: 'Invalid input' });
+  }
+  const { email, otp } = req.body;
+  const user = await User.findOne({ email }).populate('site', 'name code location.city');
+  if (!user || !user.otpCode || !user.otpExpires || user.otpExpires < new Date() || user.otpCode !== otp) {
+    return res.status(401).json({ success: false, errorCode: 'AUTH_REQUIRED', message: 'Invalid or expired OTP' });
+  }
+  user.otpCode = undefined; user.otpExpires = undefined; user.lastLogin = new Date();
+  await user.save();
+  const token = user.getSignedJwtToken();
+  res.json({ success: true, message: 'Login successful', token, user });
+}));
+
 module.exports = router; 
+ 

@@ -47,6 +47,8 @@ const logger = winston.createLogger({
     })
   ]
 });
+// Make logger available to routes and error utils
+app.set('logger', logger);
 
 // Security middleware
 app.use(helmet({
@@ -229,6 +231,7 @@ const reportRoutes = require('./routes/reports');
 const notificationRoutes = require('./routes/notifications');
 const categoryRoutes = require('./routes/categories');
 const paymentRoutes = require('./routes/payments');
+const whatsappWebhookRoutes = require('./routes/webhooks.whatsapp');
 const testNotificationRoutes = require('./routes/test-notifications');
 const financeRoutes = require('./routes/finance');
 
@@ -242,6 +245,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/webhooks', whatsappWebhookRoutes);
 app.use('/api/test-notifications', testNotificationRoutes);
 app.use('/api/finance', financeRoutes);
 
@@ -289,15 +293,9 @@ app.get('/', (req, res) => {
   });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  logger.error('Error:', err);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
-});
+// Error handling middleware (standardized)
+const { errorResponder } = require('./utils/errors');
+app.use(errorResponder);
 
 // Start server
 const PORT = process.env.PORT || 3001;

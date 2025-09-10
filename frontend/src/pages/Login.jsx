@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, TextField, Button, Fade, Zoom, Avatar, InputAdornment, IconButton, FormControlLabel, Checkbox, FormControl, InputLabel, Select, MenuItem, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, Fade, Zoom, Slide, Avatar, InputAdornment, IconButton, FormControlLabel, Checkbox, FormControl, InputLabel, Select, MenuItem, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar, Tabs, Tab } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -9,6 +9,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PersonIcon from '@mui/icons-material/Person';
 import EmailIcon from '@mui/icons-material/Email';
 import { GoogleLogin } from '@react-oauth/google';
+import LoginDemoOverlay from '../components/LoginDemoOverlay';
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +34,12 @@ const Login = () => {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [forgotPasswordError, setForgotPasswordError] = useState('');
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState('');
+  const [activeTab, setActiveTab] = useState(0); // 0 = Password Login, 1 = OTP Login
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpMessage, setOtpMessage] = useState('');
 
   // Generate floating particles
   useEffect(() => {
@@ -307,6 +314,9 @@ const Login = () => {
               justifyContent: 'center',
               position: 'relative',
               minHeight: { xs: 'auto', md: '600px' },
+              boxShadow: darkMode
+                ? '20px 20px 60px #1a1a1a, -20px -20px 60px #2e2e2e'
+                : '12px 12px 30px rgba(0,0,0,0.08), -12px -12px 30px rgba(255,255,255,0.8)',
               '&::before': {
                 content: '""',
                 position: 'absolute',
@@ -344,8 +354,26 @@ const Login = () => {
                 </Typography>
               </Box>
 
-              {/* Login Form */}
-              <form onSubmit={handleSubmit}>
+              {/* Tabs for Login methods */}
+              <Box sx={{ mb: 2 }}>
+                <Tabs
+                  value={activeTab}
+                  onChange={(e, v) => setActiveTab(v)}
+                  textColor="primary"
+                  indicatorColor="primary"
+                  sx={{
+                    '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 },
+                    '& .MuiTabs-indicator': { backgroundColor: '#008080' },
+                  }}
+                >
+                  <Tab label="Password Login" id="tab-password" />
+                  <Tab label="OTP Login" />
+                </Tabs>
+              </Box>
+
+              {/* Password Login */}
+              <Slide in={activeTab === 0} direction="right" mountOnEnter unmountOnExit>
+                <Box component="form" onSubmit={handleSubmit}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <TextField
                     fullWidth
@@ -355,6 +383,7 @@ const Login = () => {
                     onChange={handleInputChange('email')}
                     error={!!errors.email}
                     helperText={errors.email}
+                    id="login-email"
                     FormHelperTextProps={{
                       sx: { color: errors.email ? '#f44336' : (darkMode ? '#b0b0b0' : '#666666') }
                     }}
@@ -386,6 +415,7 @@ const Login = () => {
                     onChange={handleInputChange('password')}
                     error={!!errors.password}
                     helperText={errors.password}
+                    id="login-password"
                     FormHelperTextProps={{
                       sx: { color: errors.password ? '#f44336' : (darkMode ? '#b0b0b0' : '#666666') }
                     }}
@@ -587,15 +617,16 @@ const Login = () => {
                       boxShadow: '0 8px 32px rgba(0,128,128,0.3)',
                       '&:hover': { 
                         background: 'linear-gradient(45deg, #006666 30%, #008080 90%)',
-                        transform: 'translateY(-2px)',
-                        boxShadow: '0 12px 40px rgba(0,128,128,0.4)'
+                        transform: 'translateY(-3px) scale(1.01)',
+                        boxShadow: '0 14px 46px rgba(0,128,128,0.45)'
                       },
                       '&:disabled': {
                         background: 'rgba(0,128,128,0.3)',
                         transform: 'none'
                       },
-                      transition: 'all 0.3s ease'
+                      transition: 'all 0.25s ease'
                     }}
+                    id="login-submit"
                   >
                     {loading ? 'Signing in...' : 'Sign In'}
                   </Button>
@@ -648,7 +679,111 @@ const Login = () => {
                     />
                   </Box>
                 </Box>
-              </form>
+                </Box>
+              </Slide>
+
+              {/* OTP Login */}
+              <Slide in={activeTab === 1} direction="left" mountOnEnter unmountOnExit>
+                <Box>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="Email Address"
+                      type="email"
+                      value={otpEmail}
+                      onChange={(e) => setOtpEmail(e.target.value)}
+                      InputProps={{
+                        sx: {
+                          borderRadius: 3,
+                          backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                          '&:hover fieldset': { borderColor: '#008080' },
+                          '&.Mui-focused fieldset': { borderColor: '#008080' }
+                        }
+                      }}
+                    />
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        fullWidth
+                        label="Enter OTP"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                        InputProps={{
+                          sx: {
+                            borderRadius: 3,
+                            backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
+                            '&:hover fieldset': { borderColor: '#008080' },
+                            '&.Mui-focused fieldset': { borderColor: '#008080' }
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="outlined"
+                        sx={{
+                          whiteSpace: 'nowrap',
+                          borderRadius: 3,
+                          borderColor: '#008080',
+                          color: '#008080',
+                          '&:hover': { borderColor: '#006666', color: '#006666', background: 'rgba(0,128,128,0.06)' }
+                        }}
+                        disabled={otpSending || !otpEmail}
+                        onClick={async () => {
+                          try {
+                            setOtpSending(true);
+                            setOtpMessage('');
+                            await authAPI.sendOtp(otpEmail);
+                            setOtpMessage('OTP sent to your email.');
+                          } catch (e) {
+                            setOtpMessage(e.userMessage || 'Failed to send OTP');
+                          } finally {
+                            setOtpSending(false);
+                          }
+                        }}
+                      >
+                        {otpSending ? 'Sending...' : 'Send OTP'}
+                      </Button>
+                    </Box>
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      size="large"
+                      sx={{
+                        py: 2,
+                        borderRadius: 3,
+                        background: 'linear-gradient(45deg, #008080 30%, #20B2AA 90%)',
+                        color: 'white',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        boxShadow: '0 8px 32px rgba(0,128,128,0.3)',
+                        '&:hover': { background: 'linear-gradient(45deg, #006666 30%, #008080 90%)', transform: 'translateY(-3px) scale(1.01)' },
+                        transition: 'all 0.25s ease'
+                      }}
+                      disabled={otpVerifying || !otpEmail || !otpCode}
+                      onClick={async () => {
+                        try {
+                          setOtpVerifying(true);
+                          setOtpMessage('');
+                          const response = await authAPI.verifyOtp(otpEmail, otpCode);
+                          localStorage.setItem('token', response.data.token);
+                          localStorage.setItem('user', JSON.stringify(response.data.user));
+                          login(response.data.user, response.data.token);
+                          navigate('/dashboard');
+                        } catch (e) {
+                          setOtpMessage(e.userMessage || 'Invalid or expired OTP');
+                        } finally {
+                          setOtpVerifying(false);
+                        }
+                      }}
+                    >
+                      {otpVerifying ? 'Verifying...' : 'Verify & Sign In'}
+                    </Button>
+                    {otpMessage && (
+                      <Typography variant="caption" sx={{ textAlign: 'center', color: otpMessage.includes('Failed') || otpMessage.includes('Invalid') ? '#f44336' : '#008080' }}>
+                        {otpMessage}
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              </Slide>
 
               {/* Demo Credentials */}
               <Box sx={{ 
@@ -1026,3 +1161,4 @@ const Login = () => {
 };
 
 export default Login; 
+// Overlay demo can be mounted in Layout or here later as needed

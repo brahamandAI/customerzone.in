@@ -232,6 +232,21 @@ const siteSchema = new mongoose.Schema({
       min: [1, 'Retention period must be at least 1 year']
     }
   },
+  expensePolicy: {
+    duplicateWindowDays: { type: Number, default: 30 },
+    perCategoryLimits: {
+      type: Map,
+      of: Number,
+      default: {}
+    },
+    cashMax: { type: Number, default: 2000 },
+    requireDirectorAbove: {
+      type: Map,
+      of: Number,
+      default: {}
+    },
+    weekendDisallow: { type: [String], default: [] }
+  },
   statistics: {
     totalExpenses: {
       type: Number,

@@ -27,6 +27,21 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Standard error mapping
+    const err = error?.response?.data;
+    const code = err?.errorCode || 'NETWORK_ERROR';
+    const codeToMessage = {
+      AUTH_REQUIRED: 'Please login to continue.',
+      PERMISSION_DENIED: 'You do not have permission for this action.',
+      NOT_FOUND: 'Requested data was not found.',
+      VALIDATION_ERROR: 'Please fix the highlighted fields.',
+      DUPLICATE: 'This item already exists.',
+      INVALID_ID: 'Invalid reference provided.',
+      INTERNAL_ERROR: 'Something went wrong. Please try again.',
+      NETWORK_ERROR: 'Please check your internet connection.'
+    };
+    error.userMessage = err?.message || codeToMessage[code] || codeToMessage.INTERNAL_ERROR;
+
     if (error.response?.status === 401) {
       // Clear both token and user data
       localStorage.removeItem('token');
@@ -48,6 +63,8 @@ export const authAPI = {
   updateProfile: (data) => api.put('/auth/profile', data),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (resetToken, password) => api.post(`/auth/reset-password/${resetToken}`, { password }),
+  sendOtp: (email) => api.post('/auth/send-otp', { email }),
+  verifyOtp: (email, otp) => api.post('/auth/verify-otp', { email, otp }),
 };
 
 // Expense API calls
@@ -98,13 +115,15 @@ export const userAPI = {
 
 // Site API calls
 export const siteAPI = {
-  getAll: () => api.get('/sites/all'),
+  getAll: (params) => api.get('/sites/all', { params }),
   getById: (id) => api.get(`/sites/${id}`),
   create: (data) => api.post('/sites/create', data),
   update: (id, data) => api.put(`/sites/${id}`, data),
   delete: (id, hardDelete = false) => api.delete(`/sites/${id}?hardDelete=${hardDelete}`),
   updateBudget: (id, data) => api.put(`/sites/${id}/budget`, data),
   getBudgetAlerts: () => api.get('/sites/budget-alerts'),
+  getPolicy: (id) => api.get(`/sites/${id}/policy`),
+  updatePolicy: (id, data) => api.put(`/sites/${id}/policy`, data),
 };
 
 // Payment API calls

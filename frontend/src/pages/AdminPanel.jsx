@@ -192,6 +192,13 @@ const AdminPanel = () => {
       action: () => navigate('/manage-sites')
     },
     {
+      title: 'Site Policy',
+      description: 'Edit per-site expense policy',
+      icon: <SettingsIcon />,
+      color: '#3f51b5',
+      action: () => navigate('/admin/policy')
+    },
+    {
       title: 'Manage Categories',
       description: 'Configure expense categories',
       icon: <CategoryIcon />,

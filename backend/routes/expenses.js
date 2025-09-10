@@ -13,6 +13,7 @@ const Comment = require('../models/Comments');
 const fileStorage = require('../utils/fileStorage');
 const emailService = require('../services/emailService');
 const smsService = require('../services/smsService');
+const policyService = require('../services/policy.service');
 
 // Configure multer for expense file uploads
 const expenseStorage = multer.diskStorage({
@@ -32,7 +33,7 @@ const expenseStorage = multer.diskStorage({
 const uploadExpenseFile = multer({
   storage: expenseStorage,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
+    fileSize: (Number(process.env.UPLOAD_MAX_MB || 25)) * 1024 * 1024 // default 25MB; configurable via env
   },
   fileFilter: function (req, file, cb) {
     // Allow common file types
@@ -253,7 +254,8 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
       vehicleKm,
       travel,
       accommodation,
-      attachments
+      attachments,
+      location
     } = req.body;
 
     // Validate required fields
@@ -359,6 +361,11 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
           bookingReference: accommodation.bookingReference
         } : undefined,
         attachments: attachments || [],
+        location: location && location.lat && location.lng ? {
+          type: 'Point',
+          coordinates: [Number(location.lng), Number(location.lat)],
+          accuracy: location.accuracy ? Number(location.accuracy) : undefined
+        } : undefined,
               status: 'submitted',
         requiredApprovalLevel: 4, // Set to 4 for L1 -> L2 -> L3 -> Finance workflow
         currentApprovalLevel: 0,
@@ -384,18 +391,80 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
           }
     }
 
+    // Fraud & policy evaluation before save
+    try {
+      // Compute receipt hash if any attachment exists
+      let receiptHash = null;
+      if (Array.isArray(newExpense.attachments) && newExpense.attachments.length > 0) {
+        const primary = newExpense.attachments.find(a => a.isReceipt) || newExpense.attachments[0];
+        if (primary?.path) {
+          try {
+            const normalized = primary.path.replace(/^[./\\]+/, '');
+            const absPath = path.isAbsolute(primary.path)
+              ? primary.path
+              : path.join(process.cwd(), normalized);
+            const filePath = fs.existsSync(absPath) ? absPath : (fs.existsSync(primary.path) ? primary.path : null);
+            if (filePath) {
+              const fileBuffer = fs.readFileSync(filePath);
+              receiptHash = policyService.computeReceiptHash(fileBuffer);
+            }
+          } catch (e) {
+            console.warn('Receipt hash compute failed:', e.message);
+          }
+        }
+      }
+
+      const normalizedKey = policyService.computeNormalizedKey({
+        amount: newExpense.amount,
+        date: newExpense.expenseDate,
+        vendor: newExpense.title
+      });
+
+      newExpense.receiptHash = receiptHash;
+      newExpense.normalizedKey = normalizedKey;
+
+      const evaluation = await policyService.evaluateExpense({
+        ...newExpense.toObject(),
+        receiptHash,
+        normalizedKey
+      });
+
+      newExpense.policyFlags = evaluation.flags;
+      newExpense.riskScore = evaluation.riskScore;
+
+      if (evaluation.nextAction === 'ESCALATE') {
+        newExpense.status = 'under_review';
+      }
+    } catch (e) {
+      console.error('⚠️ Policy evaluation failed, proceeding without flags:', e.message);
+    }
+
     await newExpense.save();
 
     // Assign L1 approvers for the site
     const l1Approvers = await User.find({ role: 'l1_approver', site: siteId, isActive: true });
+    console.log('🧭 L1 assignment debug:', {
+      expenseId: newExpense._id.toString(),
+      siteId: siteId?.toString?.() || siteId,
+      l1Count: l1Approvers.length,
+      l1Ids: l1Approvers.map(a => a._id.toString())
+    });
+    let createdPA = 0;
     for (const approver of l1Approvers) {
-      await PendingApprover.create({
-        level: 1,
-        approver: approver._id,
-        expense: newExpense._id,
-        status: 'pending'
-      });
+      try {
+        await PendingApprover.create({
+          level: 1,
+          approver: approver._id,
+          expense: newExpense._id,
+          status: 'pending'
+        });
+        createdPA += 1;
+      } catch (e) {
+        console.warn('⚠️ PendingApprover create failed:', e.message);
+      }
     }
+    const paCount = await PendingApprover.countDocuments({ expense: newExpense._id });
+    console.log('🧭 L1 assignment result:', { createdPA, paCount });
 
     // Populate the expense with user and site details
     const populatedExpense = await Expense.findById(newExpense._id)
@@ -416,6 +485,8 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
       department: newExpense.department,
       amount: newExpense.amount,
       category: newExpense.category,
+      policyFlags: newExpense.policyFlags || [],
+      riskScore: newExpense.riskScore || 0,
       timestamp: new Date()
     };
 
@@ -478,6 +549,7 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
 router.get('/all', async (req, res) => {
   try {
     const expenses = await Expense.find({ isActive: true, isDeleted: false })
+      .select('expenseNumber title amount category expenseDate submittedBy site status policyFlags riskScore')
       .populate('submittedBy', 'name email department')
       .populate('site', 'name code')
       .sort({ createdAt: -1 });
@@ -542,7 +614,8 @@ router.get('/pending', protect, authorize('l1_approver', 'l2_approver', 'l3_appr
     // Role-based filtering
     let statusFilter = {};
     if (userRole === 'L1_APPROVER') {
-      statusFilter = { status: 'submitted' };
+      // Include newly created flagged expenses which are marked under_review
+      statusFilter = { status: { $in: ['submitted', 'under_review'] } };
     } else if (userRole === 'L2_APPROVER') {
       statusFilter = { status: 'approved_l1' };
     } else if (userRole === 'L3_APPROVER') {
@@ -550,8 +623,8 @@ router.get('/pending', protect, authorize('l1_approver', 'l2_approver', 'l3_appr
     } else if (userRole === 'FINANCE') {
       statusFilter = { status: 'approved_l3' };
     } else {
-      // For other roles, show all pending
-      statusFilter = { status: { $in: ['submitted', 'approved_l1', 'approved_l2', 'approved_l3'] } };
+      // For other roles, show all pending including under_review (flagged cases)
+      statusFilter = { status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2', 'approved_l3'] } };
     }
     
     const expenses = await Expense.find({
@@ -586,6 +659,7 @@ router.get('/:expenseId', async (req, res) => {
     const { expenseId } = req.params;
     
     const expense = await Expense.findById(expenseId)
+      .select('+policyFlags +riskScore +attachments +approvalHistory +pendingApprovers')
       .populate('submittedBy', 'name email department')
       .populate('site', 'name code')
       .populate('approvalHistory.approver', 'name email role')
@@ -1057,6 +1131,32 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
             status: 'pending'
           });
         }
+        // Notify L2 approvers via email/SMS
+        try {
+          const notifyData = {
+            expenseNumber: updatedExpense.expenseNumber,
+            title: updatedExpense.title,
+            submitter: updatedExpense.submittedBy?.name,
+            submitterEmail: updatedExpense.submittedBy?.email,
+            site: updatedExpense.site?.name,
+            department: updatedExpense.department,
+            amount: updatedExpense.amount,
+            category: updatedExpense.category,
+            policyFlags: updatedExpense.policyFlags || [],
+            riskScore: updatedExpense.riskScore || 0,
+            timestamp: new Date()
+          };
+          for (const a of l2Approvers) {
+            if (a?.preferences?.notifications?.email && a.email) {
+              await emailService.sendExpenseNotification(a, notifyData);
+            }
+            if (a?.preferences?.notifications?.sms && a.phone) {
+              await smsService.sendExpenseNotification(a.phone, notifyData);
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Failed to notify L2 approvers:', e.message);
+        }
       } else if (levelNum === 2) {
         // Remove L2 PendingApprover for this expense and approver
         await PendingApprover.deleteMany({ expense: expenseId, level: 2, approver: approverId });
@@ -1070,6 +1170,32 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
             status: 'pending'
           });
         }
+        // Notify L3 approvers via email/SMS
+        try {
+          const notifyData = {
+            expenseNumber: updatedExpense.expenseNumber,
+            title: updatedExpense.title,
+            submitter: updatedExpense.submittedBy?.name,
+            submitterEmail: updatedExpense.submittedBy?.email,
+            site: updatedExpense.site?.name,
+            department: updatedExpense.department,
+            amount: updatedExpense.amount,
+            category: updatedExpense.category,
+            policyFlags: updatedExpense.policyFlags || [],
+            riskScore: updatedExpense.riskScore || 0,
+            timestamp: new Date()
+          };
+          for (const a of l3Approvers) {
+            if (a?.preferences?.notifications?.email && a.email) {
+              await emailService.sendExpenseNotification(a, notifyData);
+            }
+            if (a?.preferences?.notifications?.sms && a.phone) {
+              await smsService.sendExpenseNotification(a.phone, notifyData);
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Failed to notify L3 approvers:', e.message);
+        }
       } else if (levelNum === 3) {
         // Remove L3 PendingApprover for this expense and approver
         await PendingApprover.deleteMany({ expense: expenseId, level: 3, approver: approverId });
@@ -1082,6 +1208,32 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
             expense: expenseId,
             status: 'pending'
           });
+        }
+        // Notify Finance via email/SMS
+        try {
+          const notifyData = {
+            expenseNumber: updatedExpense.expenseNumber,
+            title: updatedExpense.title,
+            submitter: updatedExpense.submittedBy?.name,
+            submitterEmail: updatedExpense.submittedBy?.email,
+            site: updatedExpense.site?.name,
+            department: updatedExpense.department,
+            amount: updatedExpense.amount,
+            category: updatedExpense.category,
+            policyFlags: updatedExpense.policyFlags || [],
+            riskScore: updatedExpense.riskScore || 0,
+            timestamp: new Date()
+          };
+          for (const a of financeApprovers) {
+            if (a?.preferences?.notifications?.email && a.email) {
+              await emailService.sendExpenseNotification(a, notifyData);
+            }
+            if (a?.preferences?.notifications?.sms && a.phone) {
+              await smsService.sendExpenseNotification(a.phone, notifyData);
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Failed to notify Finance:', e.message);
         }
               } else if (levelNum === 4) {
           // Remove Finance PendingApprover for this expense and approver

@@ -189,6 +189,48 @@ const expenseSchema = new mongoose.Schema({
     }
   }],
   
+  // Fraud & Policy Detection
+  receiptHash: {
+    type: String,
+    index: true
+  },
+  normalizedKey: {
+    type: String,
+    index: true
+  },
+  policyFlags: [{
+    type: String,
+    enum: [
+      'DUPLICATE_RECEIPT',
+      'SOFT_DUPLICATE',
+      'OVER_LIMIT_TRAVEL',
+      'CASH_OVER_CAP',
+      'SUSPECT',
+      'LOCATION_MISMATCH',
+      'DISTANCE_EXCEEDED'
+    ]
+  }],
+  riskScore: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
+  },
+
+  // Geo Tagging
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [lng, lat]
+      index: '2dsphere',
+    },
+    accuracy: Number
+  },
+  
   // Approval Workflow
   status: {
     type: String,
@@ -505,6 +547,10 @@ expenseSchema.index({ 'pendingApprovers.approver': 1 });
 expenseSchema.index({ expenseDate: -1 });
 expenseSchema.index({ amount: 1 });
 expenseSchema.index({ isActive: 1, isDeleted: 1 });
+// Fraud detection indexes
+expenseSchema.index({ receiptHash: 1 });
+expenseSchema.index({ normalizedKey: 1 });
+expenseSchema.index({ submittedBy: 1, expenseDate: -1, amount: 1 });
 
 // Compound indexes
 expenseSchema.index({ site: 1, category: 1, expenseDate: -1 });

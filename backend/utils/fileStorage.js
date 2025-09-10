@@ -140,7 +140,7 @@ class FileStorage {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     ];
 
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = (Number(process.env.UPLOAD_MAX_MB || 25)) * 1024 * 1024; // default 25MB; env configurable
 
     const errors = [];
 
@@ -151,7 +151,8 @@ class FileStorage {
 
     // Check file size
     if (file.size > maxSize) {
-      errors.push(`File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds maximum allowed size of 10MB`);
+      const limitMb = Number(process.env.UPLOAD_MAX_MB || 25);
+      errors.push(`File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds maximum allowed size of ${limitMb}MB`);
     }
 
     // Check file name

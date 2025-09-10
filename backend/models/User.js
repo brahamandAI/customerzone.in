@@ -114,6 +114,8 @@ const userSchema = new mongoose.Schema({
   lockUntil: Date,
   resetPasswordToken: String,
   resetPasswordExpire: Date,
+  otpCode: String,
+  otpExpires: Date,
   emailVerificationToken: String,
   emailVerificationExpire: Date,
   preferences: {

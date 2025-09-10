@@ -321,4 +321,59 @@ router.delete('/:siteId', protect, authorize('l3_approver', 'finance'), async (r
   }
 });
 
+// Get site expense policy
+router.get('/:siteId/policy', protect, authorize('l3_approver', 'finance'), async (req, res) => {
+  try {
+    const { siteId } = req.params;
+    const site = await Site.findById(siteId).lean();
+    if (!site) {
+      return res.status(404).json({ success: false, message: 'Site not found' });
+    }
+    const policy = site.expensePolicy || {
+      duplicateWindowDays: 30,
+      perCategoryLimits: {},
+      cashMax: 2000,
+      requireDirectorAbove: {},
+      weekendDisallow: []
+    };
+    res.json({ success: true, data: policy });
+  } catch (error) {
+    console.error('Error fetching site policy:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Update site expense policy
+router.put('/:siteId/policy', protect, authorize('l3_approver', 'finance'), async (req, res) => {
+  try {
+    const { siteId } = req.params;
+    const update = req.body || {};
+
+    const site = await Site.findById(siteId);
+    if (!site) {
+      return res.status(404).json({ success: false, message: 'Site not found' });
+    }
+
+    // Initialize if missing
+    if (!site.expensePolicy) {
+      site.expensePolicy = {};
+    }
+
+    // Merge allowed keys only
+    const allowedKeys = ['duplicateWindowDays', 'perCategoryLimits', 'cashMax', 'requireDirectorAbove', 'weekendDisallow'];
+    for (const key of allowedKeys) {
+      if (Object.prototype.hasOwnProperty.call(update, key)) {
+        site.expensePolicy[key] = update[key];
+      }
+    }
+
+    await site.save();
+    res.json({ success: true, message: 'Policy updated', data: site.expensePolicy });
+  } catch (error) {
+    console.error('Error updating site policy:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 module.exports = router; 
+ 

@@ -15,6 +15,7 @@ import Settings from './pages/Settings';
 import Reports from './pages/Reports';
 import BudgetAlerts from './pages/BudgetAlerts';
 import Help from './pages/Help';
+import AdminPolicy from './pages/AdminPolicy';
 import NavBar from './components/NavBar';
 import TestSubmit from './components/TestSubmit';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -107,6 +108,12 @@ function Layout() {
         <Route path="/admin" element={
           <PrivateRoute>
             <AdminPanel />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/admin/policy" element={
+          <PrivateRoute>
+            <AdminPolicy />
           </PrivateRoute>
         } />
         

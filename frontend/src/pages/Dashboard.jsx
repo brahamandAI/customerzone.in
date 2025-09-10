@@ -36,6 +36,7 @@ const Dashboard = () => {
     budgetUtilization: 0,
     savings: 0
   });
+  const [budgetBreakdown, setBudgetBreakdown] = useState({ approvedAmount: 0, pendingAmount: 0, remainingBudget: 0, approvedUtilization: 0, projectedUtilization: 0 });
   const [topCategories, setTopCategories] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -79,6 +80,7 @@ const Dashboard = () => {
         
         setStats(calculatedStats);
         setTopCategories(data.topCategories || []);
+        if (data.submitterBudgetBreakdown) setBudgetBreakdown(data.submitterBudgetBreakdown);
         setRecentActivities(data.recentActivities || []);
         
         console.log('✅ Dashboard data updated successfully');
@@ -650,19 +652,85 @@ const Dashboard = () => {
                       <WarningIcon />
                     </Avatar>
                     <Typography variant="h4" fontWeight={700} color="#f44336">
-                      {Number(stats.budgetUtilization || 0).toLocaleString()}%
+                      {Number(budgetBreakdown.approvedUtilization || stats.budgetUtilization || 0).toLocaleString()}%
                     </Typography>
                     <Typography variant="body2" sx={{ color: darkMode ? '#b0b0b0' : '#666666' }}>
-                      Budget Utilization
+                      Approved Utilization
                     </Typography>
                     <LinearProgress 
                       variant="determinate" 
-                      value={stats.budgetUtilization} 
+                      value={budgetBreakdown.approvedUtilization || stats.budgetUtilization} 
                       sx={{ mt: 1, height: 6, borderRadius: 3 }}
                     />
+                    <Typography variant="caption" display="block" sx={{ mt: 1, color: darkMode ? '#b0b0b0' : '#666666' }}>
+                      Projected: {Number(budgetBreakdown.projectedUtilization || 0).toLocaleString()}%
+                    </Typography>
                   </Paper>
                 </Zoom>
               </Grid>
+            )}
+
+            {/* Submitter mini-cards: Approved, Pending, Remaining */}
+            {user?.role?.toLowerCase() === 'submitter' && (
+              <>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Zoom in style={{ transitionDelay: '820ms' }}>
+                    <Paper elevation={16} sx={{
+                      p: 3,
+                      borderRadius: 3,
+                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center',
+                      minHeight: 180,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center'
+                    }}>
+                      <Typography variant="caption" sx={{ color: '#666' }}>Approved spend</Typography>
+                      <Typography variant="h4" fontWeight={700} color="#4caf50">₹{Number(budgetBreakdown.approvedAmount || 0).toLocaleString()}</Typography>
+                    </Paper>
+                  </Zoom>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Zoom in style={{ transitionDelay: '840ms' }}>
+                    <Paper elevation={16} sx={{
+                      p: 3,
+                      borderRadius: 3,
+                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center',
+                      minHeight: 180,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center'
+                    }}>
+                      <Typography variant="caption" sx={{ color: '#666' }}>Pending spend</Typography>
+                      <Typography variant="h4" fontWeight={700} color="#ff9800">₹{Number(budgetBreakdown.pendingAmount || 0).toLocaleString()}</Typography>
+                    </Paper>
+                  </Zoom>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Zoom in style={{ transitionDelay: '860ms' }}>
+                    <Paper elevation={16} sx={{
+                      p: 3,
+                      borderRadius: 3,
+                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center',
+                      minHeight: 180,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center'
+                    }}>
+                      <Typography variant="caption" sx={{ color: '#666' }}>Remaining budget</Typography>
+                      <Typography variant="h4" fontWeight={700} color="#667eea">₹{Number(budgetBreakdown.remainingBudget || 0).toLocaleString()}</Typography>
+                    </Paper>
+                  </Zoom>
+                </Grid>
+              </>
             )}
 
             {/* Additional Super Admin Cards - Hide for Finance */}

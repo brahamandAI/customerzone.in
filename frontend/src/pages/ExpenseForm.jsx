@@ -28,6 +28,7 @@ const ExpenseForm = () => {
   const [cameraLoading, setCameraLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [geo, setGeo] = useState(null);
   const [openSnackbar, setOpenSnackbar] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -114,6 +115,16 @@ const ExpenseForm = () => {
   // ALL useEffect hooks must be here before conditional logic
   // Fetch next expense number from backend
   useEffect(() => {
+    // Try to capture location early (user allows once per session)
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+      );
+    }
     const fetchNextExpenseNumber = async () => {
       try {
         const response = await expenseAPI.getNextExpenseNumber();
@@ -618,7 +629,8 @@ const ExpenseForm = () => {
           ratePerKm: 10
         },
         bankDetails: formData.bankDetails,
-        attachments: uploadedFiles
+        attachments: uploadedFiles,
+        location: geo || undefined
       };
 
       // Log the final payload for debugging

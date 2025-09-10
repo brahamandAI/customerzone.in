@@ -127,6 +127,78 @@ class EmailService {
     }
   }
 
+  async sendOtpEmail(userEmail, otp) {
+    if (!this.transporter) {
+      console.error('❌ Email transporter not initialized');
+      return false;
+    }
+
+    try {
+      const mailOptions = {
+        from: `"${process.env.EMAIL_FROM_NAME || 'Rakshak Expense System'}" <${process.env.EMAIL_FROM || process.env.SMTP_EMAIL}>`,
+        to: userEmail,
+        subject: '🔐 Your One-Time Login Code (OTP)',
+        html: this.generateOtpHTML(otp),
+        text: this.generateOtpText(otp)
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      console.log('✅ OTP email sent successfully to:', userEmail);
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to send OTP email:', error);
+      return false;
+    }
+  }
+
+  generateOtpHTML(otp) {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Your Login OTP</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #008080; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .code { font-size: 28px; letter-spacing: 6px; font-weight: 800; background: white; padding: 12px 20px; text-align: center; border-radius: 10px; border: 1px solid #e0e0e0; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🔐 One-Time Login Code</h1>
+          </div>
+          <div class="content">
+            <p>Hello,</p>
+            <p>Use the OTP below to login to Rakshak Expense Management System. This code is valid for 5 minutes.</p>
+            <p class="code">${otp}</p>
+            <p>If you did not request this code, you can safely ignore this email.</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated message from Rakshak Expense Management System.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  generateOtpText(otp) {
+    return `
+One-Time Login Code (OTP)
+
+Use this code to login. It is valid for 5 minutes:
+
+${otp}
+
+If you did not request this, please ignore this email.
+    `;
+  }
+
   generateExpenseNotificationHTML(expenseData) {
     return `
       <!DOCTYPE html>
