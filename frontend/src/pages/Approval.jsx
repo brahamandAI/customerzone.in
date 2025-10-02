@@ -273,7 +273,7 @@ const Approval = () => {
       const response = await expenseAPI.approveExpense(id, {
         action: 'approve',
         level: levelMap[selectedApproval.approvalLevel], // send as int
-        approverId: user?.id, // <-- Add user id here
+        approverId: user?._id, // <-- Add user id here
         comments: approvalComment,
         modifiedAmount: modifiedAmount ? parseFloat(modifiedAmount) : null,
         modificationReason: amountChangeReason,
@@ -317,7 +317,7 @@ const Approval = () => {
       const response = await expenseAPI.rejectExpense(id, {
         action: 'reject',
         level: levelMap[selectedApproval.approvalLevel], // send as int
-        approverId: user?.id, // <-- Add user id here
+        approverId: user?._id, // <-- Add user id here
         comments: approvalComment,
           modifiedAmount: modifiedAmount ? parseFloat(modifiedAmount) : null,
         modificationReason: amountChangeReason

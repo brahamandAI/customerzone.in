@@ -327,7 +327,11 @@ const Dashboard = () => {
         : (isApprover
           ? (data.monthlyStats?.monthlyApprovedCount || 0)
           : (data.userStats?.totalExpenses || 0)),
-      approvedThisMonth: isFinance ? (data.paymentStats?.totalPayments || 0) : (data.approvalStats?.approvedCount || 0),  // Payments this month for Finance
+      approvedThisMonth: isFinance 
+        ? (data.paymentStats?.totalPayments || 0)  // Payments this month for Finance
+        : (user.role?.toLowerCase() === 'submitter' 
+          ? (data.submitterBudgetBreakdown?.approvedAmount || 0)  // For submitter, use approved amount from budget breakdown (only fully approved)
+          : (data.approvalStats?.approvedAmount || 0)),  // For approvers, use approval amount
       budgetUtilization: data.budgetUtilization || data.siteBudget?.utilization || 0,
       totalUsers: (isFinance || user?.role?.toLowerCase() === 'l3_approver') ? (data.systemStats?.totalUsers || 0) : 0,
       totalSites: (isFinance || user?.role?.toLowerCase() === 'l3_approver') ? (data.systemStats?.totalSites || 0) : 0,
@@ -336,6 +340,9 @@ const Dashboard = () => {
     };
     
     console.log('Calculated stats:', stats);
+    console.log('🔍 Debug - User role:', user.role);
+    console.log('🔍 Debug - Approval stats:', data.approvalStats);
+    console.log('🔍 Debug - Approved amount:', data.approvalStats?.approvedAmount);
     
     return stats;
   };
@@ -513,14 +520,26 @@ const Dashboard = () => {
             {/* Total Amount Card - Different for L4 Approver */}
             <Grid item xs={12} sm={6} md={3}>
               <Zoom in style={{ transitionDelay: '200ms' }}>
-                <Paper elevation={16} sx={{ 
-                  p: 3, 
-                  borderRadius: 3, 
-                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                  backdropFilter: 'blur(10px)',
-                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                  textAlign: 'center'
-                }} className="dashboard-card">
+                <Paper 
+                  elevation={16} 
+                  sx={{ 
+                    p: 3, 
+                    borderRadius: 3, 
+                    background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                    backdropFilter: 'blur(10px)',
+                    border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                      border: darkMode ? '1px solid #667eea' : '1px solid #667eea'
+                    }
+                  }} 
+                  className="dashboard-card"
+                  onClick={() => navigate('/total-amount')}
+                >
                   <Avatar sx={{ bgcolor: '#667eea', mx: 'auto', mb: 2 }}>
                     <CurrencyRupeeIcon />
                   </Avatar>
@@ -545,14 +564,25 @@ const Dashboard = () => {
               <>
             <Grid item xs={12} sm={6} md={3}>
               <Zoom in style={{ transitionDelay: '400ms' }}>
-                <Paper elevation={16} sx={{ 
-                  p: 3, 
-                  borderRadius: 3, 
-                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                  backdropFilter: 'blur(10px)',
-                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                  textAlign: 'center'
-                }}>
+                <Paper 
+                  elevation={16} 
+                  sx={{ 
+                    p: 3, 
+                    borderRadius: 3, 
+                    background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                    backdropFilter: 'blur(10px)',
+                    border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                      border: darkMode ? '1px solid #ff9800' : '1px solid #ff9800'
+                    }
+                  }}
+                  onClick={() => navigate('/pending-approvals')}
+                >
                   <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
                     <PendingIcon />
                   </Avatar>
@@ -574,14 +604,25 @@ const Dashboard = () => {
             
             <Grid item xs={12} sm={6} md={3}>
               <Zoom in style={{ transitionDelay: '600ms' }}>
-                <Paper elevation={16} sx={{ 
-                  p: 3, 
-                  borderRadius: 3, 
-                  background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                  backdropFilter: 'blur(10px)',
-                  border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                  textAlign: 'center'
-                }}>
+                <Paper 
+                  elevation={16} 
+                  sx={{ 
+                    p: 3, 
+                    borderRadius: 3, 
+                    background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                    backdropFilter: 'blur(10px)',
+                    border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                      border: darkMode ? '1px solid #4caf50' : '1px solid #4caf50'
+                    }
+                  }}
+                  onClick={() => navigate('/approved-this-month')}
+                >
                   <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
                     <CheckCircleIcon />
                   </Avatar>
@@ -608,14 +649,25 @@ const Dashboard = () => {
             {user?.role?.toLowerCase() === 'finance' && (
               <Grid item xs={12} sm={6} md={3}>
                 <Zoom in style={{ transitionDelay: '700ms' }}>
-                  <Paper elevation={16} sx={{ 
-                    p: 3, 
-                    borderRadius: 3, 
-                    background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                    backdropFilter: 'blur(10px)',
-                    border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                    textAlign: 'center'
-                  }}>
+                  <Paper 
+                    elevation={16} 
+                    sx={{ 
+                      p: 3, 
+                      borderRadius: 3, 
+                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                        border: darkMode ? '1px solid #9c27b0' : '1px solid #9c27b0'
+                      }
+                    }}
+                    onClick={() => navigate('/payment-processed')}
+                  >
                     <Avatar sx={{ bgcolor: '#9c27b0', mx: 'auto', mb: 2 }}>
                       <PaymentIcon />
                     </Avatar>
@@ -675,18 +727,29 @@ const Dashboard = () => {
               <>
                 <Grid item xs={12} sm={6} md={3}>
                   <Zoom in style={{ transitionDelay: '820ms' }}>
-                    <Paper elevation={16} sx={{
-                      p: 3,
-                      borderRadius: 3,
-                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                      backdropFilter: 'blur(10px)',
-                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                      textAlign: 'center',
-                      minHeight: 180,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center'
-                    }}>
+                    <Paper 
+                      elevation={16} 
+                      sx={{
+                        p: 3,
+                        borderRadius: 3,
+                        background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                        backdropFilter: 'blur(10px)',
+                        border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                        textAlign: 'center',
+                        minHeight: 180,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                          border: darkMode ? '1px solid #4caf50' : '1px solid #4caf50'
+                        }
+                      }}
+                      onClick={() => navigate('/approved-this-month')}
+                    >
                       <Typography variant="caption" sx={{ color: '#666' }}>Approved spend</Typography>
                       <Typography variant="h4" fontWeight={700} color="#4caf50">₹{Number(budgetBreakdown.approvedAmount || 0).toLocaleString()}</Typography>
                     </Paper>
@@ -694,18 +757,29 @@ const Dashboard = () => {
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Zoom in style={{ transitionDelay: '840ms' }}>
-                    <Paper elevation={16} sx={{
-                      p: 3,
-                      borderRadius: 3,
-                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                      backdropFilter: 'blur(10px)',
-                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                      textAlign: 'center',
-                      minHeight: 180,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center'
-                    }}>
+                    <Paper 
+                      elevation={16} 
+                      sx={{
+                        p: 3,
+                        borderRadius: 3,
+                        background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                        backdropFilter: 'blur(10px)',
+                        border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                        textAlign: 'center',
+                        minHeight: 180,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                          border: darkMode ? '1px solid #ff9800' : '1px solid #ff9800'
+                        }
+                      }}
+                      onClick={() => navigate('/pending-expenses')}
+                    >
                       <Typography variant="caption" sx={{ color: '#666' }}>Pending spend</Typography>
                       <Typography variant="h4" fontWeight={700} color="#ff9800">₹{Number(budgetBreakdown.pendingAmount || 0).toLocaleString()}</Typography>
                     </Paper>
@@ -713,18 +787,29 @@ const Dashboard = () => {
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Zoom in style={{ transitionDelay: '860ms' }}>
-                    <Paper elevation={16} sx={{
-                      p: 3,
-                      borderRadius: 3,
-                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                      backdropFilter: 'blur(10px)',
-                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                      textAlign: 'center',
-                      minHeight: 180,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center'
-                    }}>
+                    <Paper 
+                      elevation={16} 
+                      sx={{
+                        p: 3,
+                        borderRadius: 3,
+                        background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                        backdropFilter: 'blur(10px)',
+                        border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                        textAlign: 'center',
+                        minHeight: 180,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                          border: darkMode ? '1px solid #667eea' : '1px solid #667eea'
+                        }
+                      }}
+                      onClick={() => navigate('/budget-utilization')}
+                    >
                       <Typography variant="caption" sx={{ color: '#666' }}>Remaining budget</Typography>
                       <Typography variant="h4" fontWeight={700} color="#667eea">₹{Number(budgetBreakdown.remainingBudget || 0).toLocaleString()}</Typography>
                     </Paper>
@@ -738,14 +823,25 @@ const Dashboard = () => {
               <>
                 <Grid item xs={12} sm={6} md={3}>
                   <Zoom in style={{ transitionDelay: '1000ms' }}>
-                    <Paper elevation={16} sx={{ 
-                      p: 3, 
-                      borderRadius: 3, 
-                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                      backdropFilter: 'blur(10px)',
-                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                      textAlign: 'center'
-                    }}>
+                    <Paper 
+                      elevation={16} 
+                      sx={{ 
+                        p: 3, 
+                        borderRadius: 3, 
+                        background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                        backdropFilter: 'blur(10px)',
+                        border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                          border: darkMode ? '1px solid #4caf50' : '1px solid #4caf50'
+                        }
+                      }}
+                      onClick={() => navigate('/total-users')}
+                    >
                       <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 2 }}>
                         <PeopleIcon />
                       </Avatar>
@@ -767,14 +863,25 @@ const Dashboard = () => {
 
                 <Grid item xs={12} sm={6} md={3}>
                   <Zoom in style={{ transitionDelay: '1200ms' }}>
-                    <Paper elevation={16} sx={{ 
-                      p: 3, 
-                      borderRadius: 3, 
-                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                      backdropFilter: 'blur(10px)',
-                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                      textAlign: 'center'
-                    }}>
+                    <Paper 
+                      elevation={16} 
+                      sx={{ 
+                        p: 3, 
+                        borderRadius: 3, 
+                        background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                        backdropFilter: 'blur(10px)',
+                        border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                          border: darkMode ? '1px solid #2196f3' : '1px solid #2196f3'
+                        }
+                      }}
+                      onClick={() => navigate('/total-sites')}
+                    >
                       <Avatar sx={{ bgcolor: '#2196f3', mx: 'auto', mb: 2 }}>
                         <BusinessIcon />
                       </Avatar>
@@ -796,14 +903,25 @@ const Dashboard = () => {
 
                 <Grid item xs={12} sm={6} md={3}>
                   <Zoom in style={{ transitionDelay: '1400ms' }}>
-                    <Paper elevation={16} sx={{ 
-                      p: 3, 
-                      borderRadius: 3, 
-                      background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-                      backdropFilter: 'blur(10px)',
-                      border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                      textAlign: 'center'
-                    }}>
+                    <Paper 
+                      elevation={16} 
+                      sx={{ 
+                        p: 3, 
+                        borderRadius: 3, 
+                        background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                        backdropFilter: 'blur(10px)',
+                        border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+                          border: darkMode ? '1px solid #ff9800' : '1px solid #ff9800'
+                        }
+                      }}
+                      onClick={() => navigate('/system-expenses')}
+                    >
                       <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 2 }}>
                         <ReceiptIcon />
                       </Avatar>

@@ -40,17 +40,21 @@ const Login = () => {
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpMessage, setOtpMessage] = useState('');
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isHoveringForm, setIsHoveringForm] = useState(false);
 
-  // Generate floating particles
+  // Generate floating particles with enhanced movement
   useEffect(() => {
     const generateParticles = () => {
-      const newParticles = Array.from({ length: 20 }, (_, i) => ({
+      const newParticles = Array.from({ length: 30 }, (_, i) => ({
         id: i,
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
-        size: Math.random() * 4 + 2,
-        speed: Math.random() * 2 + 1,
-        opacity: Math.random() * 0.3 + 0.1
+        size: Math.random() * 6 + 2,
+        speed: Math.random() * 3 + 1,
+        opacity: Math.random() * 0.4 + 0.1,
+        rotation: Math.random() * 360,
+        rotationSpeed: (Math.random() - 0.5) * 2
       }));
       setParticles(newParticles);
     };
@@ -59,12 +63,24 @@ const Login = () => {
     const interval = setInterval(() => {
       setParticles(prev => prev.map(p => ({
         ...p,
-        y: p.y - p.speed,
-        x: p.x + Math.sin(p.y / 50) * 0.5
+        y: p.y > -50 ? p.y - p.speed : window.innerHeight + 50,
+        x: p.x + Math.sin(p.y / 50) * 0.8 + (mousePosition.x - window.innerWidth / 2) * 0.0001,
+        rotation: p.rotation + p.rotationSpeed,
+        opacity: isHoveringForm ? p.opacity * 1.5 : p.opacity
       })));
     }, 50);
 
     return () => clearInterval(interval);
+  }, [mousePosition, isHoveringForm]);
+
+  // Mouse tracking for interactive effects
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
   const handleInputChange = (field) => (event) => {
@@ -219,7 +235,7 @@ const Login = () => {
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Floating Particles */}
+      {/* Enhanced Floating Particles */}
       {particles.map(particle => (
         <Box
           key={particle.id}
@@ -229,18 +245,42 @@ const Login = () => {
             top: particle.y,
             width: particle.size,
             height: particle.size,
-            background: 'rgba(255, 255, 255, 0.6)',
+            background: `radial-gradient(circle, rgba(255, 255, 255, ${particle.opacity * 0.8}) 0%, rgba(255, 255, 255, ${particle.opacity * 0.3}) 100%)`,
             borderRadius: '50%',
             opacity: particle.opacity,
-            animation: 'float 6s ease-in-out infinite',
+            transform: `rotate(${particle.rotation}deg)`,
+            animation: 'sparkle 3s ease-in-out infinite',
             zIndex: 0,
-            '@keyframes float': {
-              '0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
-              '50%': { transform: 'translateY(-20px) rotate(180deg)' }
+            filter: 'blur(0.5px)',
+            boxShadow: `0 0 ${particle.size * 2}px rgba(255, 255, 255, ${particle.opacity * 0.3})`,
+            '@keyframes sparkle': {
+              '0%, 100%': { 
+                transform: `rotate(${particle.rotation}deg) scale(1)`,
+                opacity: particle.opacity 
+              },
+              '50%': { 
+                transform: `rotate(${particle.rotation + 180}deg) scale(1.2)`,
+                opacity: particle.opacity * 1.5
+              }
             }
           }}
         />
       ))}
+
+      {/* Interactive Mouse Follower */}
+      <Box sx={{
+        position: 'absolute',
+        left: mousePosition.x - 100,
+        top: mousePosition.y - 100,
+        width: 200,
+        height: 200,
+        background: 'radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%)',
+        borderRadius: '50%',
+        pointerEvents: 'none',
+        zIndex: 0,
+        transition: 'all 0.3s ease',
+        transform: isHoveringForm ? 'scale(1.5)' : 'scale(1)'
+      }} />
 
       {/* Animated background patterns */}
       <Box sx={{
@@ -303,31 +343,52 @@ const Login = () => {
         }}>
           {/* Left Side - Login Form */}
           <Zoom in style={{ transitionDelay: '200ms' }}>
-            <Paper elevation={24} sx={{ 
-              flex: 1,
-              p: { xs: 3, sm: 4, md: 5 }, 
-              background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
-              backdropFilter: 'blur(20px)',
-              border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              position: 'relative',
-              minHeight: { xs: 'auto', md: '600px' },
-              boxShadow: darkMode
-                ? '20px 20px 60px #1a1a1a, -20px -20px 60px #2e2e2e'
-                : '12px 12px 30px rgba(0,0,0,0.08), -12px -12px 30px rgba(255,255,255,0.8)',
-              '&::before': {
-                content: '""',
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: '4px',
-                background: 'linear-gradient(90deg, #008080, #20B2AA, #48D1CC)',
-                borderRadius: '4px 4px 0 0'
-              }
-            }}>
+            <Paper 
+              elevation={24} 
+              onMouseEnter={() => setIsHoveringForm(true)}
+              onMouseLeave={() => setIsHoveringForm(false)}
+              sx={{ 
+                flex: 1,
+                p: { xs: 3, sm: 4, md: 5 }, 
+                background: darkMode ? 'rgba(26,26,26,0.95)' : 'rgba(255,255,255,0.95)',
+                backdropFilter: 'blur(20px)',
+                border: darkMode ? '1px solid rgba(51,51,51,0.3)' : '1px solid rgba(255,255,255,0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                position: 'relative',
+                minHeight: { xs: 'auto', md: '600px' },
+                boxShadow: darkMode
+                  ? '20px 20px 60px #1a1a1a, -20px -20px 60px #2e2e2e'
+                  : '12px 12px 30px rgba(0,0,0,0.08), -12px -12px 30px rgba(255,255,255,0.8)',
+                transform: isHoveringForm ? 'translateY(-5px) scale(1.02)' : 'translateY(0) scale(1)',
+                transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: isHoveringForm ? '6px' : '4px',
+                  background: 'linear-gradient(90deg, #008080, #20B2AA, #48D1CC)',
+                  borderRadius: '4px 4px 0 0',
+                  transition: 'height 0.3s ease'
+                },
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  top: -2,
+                  left: -2,
+                  right: -2,
+                  bottom: -2,
+                  background: 'linear-gradient(45deg, #008080, #20B2AA, #48D1CC, #008080)',
+                  borderRadius: 'inherit',
+                  zIndex: -1,
+                  opacity: isHoveringForm ? 0.3 : 0,
+                  filter: 'blur(8px)',
+                  transition: 'opacity 0.3s ease'
+                }
+              }}>
               {/* Login Form Header */}
               <Box sx={{ mb: 4, textAlign: 'center' }}>
                 {/* Mobile Logo and Title */}
@@ -362,8 +423,48 @@ const Login = () => {
                   textColor="primary"
                   indicatorColor="primary"
                   sx={{
-                    '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 },
-                    '& .MuiTabs-indicator': { backgroundColor: '#008080' },
+                    '& .MuiTab-root': { 
+                      textTransform: 'none', 
+                      fontWeight: 600,
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      '&:hover': {
+                        transform: 'translateY(-1px)',
+                        color: '#008080',
+                        '&::before': {
+                          opacity: 1,
+                          transform: 'scaleX(1)'
+                        }
+                      },
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: '2px',
+                        background: 'linear-gradient(90deg, #008080, #20B2AA)',
+                        opacity: 0,
+                        transform: 'scaleX(0)',
+                        transition: 'all 0.3s ease',
+                        transformOrigin: 'center'
+                      },
+                      '&.Mui-selected': {
+                        color: '#008080',
+                        fontWeight: 700,
+                        '&::before': {
+                          opacity: 1,
+                          transform: 'scaleX(1)'
+                        }
+                      }
+                    },
+                    '& .MuiTabs-indicator': { 
+                      backgroundColor: '#008080',
+                      height: '3px',
+                      borderRadius: '2px',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                    },
                   }}
                 >
                   <Tab label="Password Login" id="tab-password" />
@@ -392,16 +493,28 @@ const Login = () => {
                         borderRadius: 3,
                         backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
                         color: darkMode ? '#ffffff' : '#333333',
-                        '&:hover fieldset': { borderColor: '#008080' },
-                        '&.Mui-focused fieldset': { borderColor: '#008080' },
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        transform: 'translateY(0)',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 4px 12px rgba(0,128,128,0.15)',
+                          '& fieldset': { borderColor: '#008080' }
+                        },
+                        '&.Mui-focused': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 6px 20px rgba(0,128,128,0.25)',
+                          '& fieldset': { borderColor: '#008080', borderWidth: '2px' }
+                        },
                         '& .MuiInputBase-input': {
                           color: darkMode ? '#ffffff' : '#333333',
                         },
                         '& .MuiInputLabel-root': {
                           color: darkMode ? '#b0b0b0' : '#666666',
+                          transition: 'all 0.3s ease',
                         },
                         '& .MuiInputLabel-root.Mui-focused': {
                           color: '#008080',
+                          transform: 'translate(14px, -9px) scale(0.75)',
                         }
                       }
                     }}
@@ -419,23 +532,34 @@ const Login = () => {
                     FormHelperTextProps={{
                       sx: { color: errors.password ? '#f44336' : (darkMode ? '#b0b0b0' : '#666666') }
                     }}
-                    InputProps={{
-                      sx: { 
-                        borderRadius: 3,
-                        backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
-                        color: darkMode ? '#ffffff' : '#333333',
-                        '&:hover fieldset': { borderColor: '#008080' },
-                        '&.Mui-focused fieldset': { borderColor: '#008080' },
-                        '& .MuiInputBase-input': {
+                      InputProps={{
+                        sx: { 
+                          borderRadius: 3,
+                          backgroundColor: darkMode ? '#2a2a2a' : '#ffffff',
                           color: darkMode ? '#ffffff' : '#333333',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          transform: 'translateY(0)',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 4px 12px rgba(0,128,128,0.15)',
+                            '& fieldset': { borderColor: '#008080' }
+                          },
+                          '&.Mui-focused': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 6px 20px rgba(0,128,128,0.25)',
+                            '& fieldset': { borderColor: '#008080', borderWidth: '2px' }
+                          },
+                          '& .MuiInputBase-input': {
+                            color: darkMode ? '#ffffff' : '#333333',
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: darkMode ? '#b0b0b0' : '#666666',
+                            transition: 'all 0.3s ease',
+                          },
+                          '& .MuiInputLabel-root.Mui-focused': {
+                            color: '#008080',
+                          }
                         },
-                        '& .MuiInputLabel-root': {
-                          color: darkMode ? '#b0b0b0' : '#666666',
-                        },
-                        '& .MuiInputLabel-root.Mui-focused': {
-                          color: '#008080',
-                        }
-                      },
                       endAdornment: (
                         <InputAdornment position="end">
                           <IconButton
@@ -628,7 +752,48 @@ const Login = () => {
                     }}
                     id="login-submit"
                   >
-                    {loading ? 'Signing in...' : 'Sign In'}
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 1,
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}>
+                      {loading && (
+                        <Box sx={{
+                          width: 20,
+                          height: 20,
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          borderTop: '2px solid white',
+                          borderRadius: '50%',
+                          animation: 'spin 1s linear infinite',
+                          '@keyframes spin': {
+                            '0%': { transform: 'rotate(0deg)' },
+                            '100%': { transform: 'rotate(360deg)' }
+                          }
+                        }} />
+                      )}
+                      {loading ? 'Signing in...' : 'Sign In'}
+                      {!loading && (
+                        <Box sx={{
+                          position: 'absolute',
+                          right: -30,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 0,
+                          height: 0,
+                          borderLeft: '6px solid white',
+                          borderTop: '4px solid transparent',
+                          borderBottom: '4px solid transparent',
+                          opacity: 0,
+                          transition: 'all 0.3s ease',
+                          '.MuiButton-root:hover &': {
+                            right: 10,
+                            opacity: 1
+                          }
+                        }} />
+                      )}
+                    </Box>
                   </Button>
 
                   <Divider sx={{ my: 3 }}>

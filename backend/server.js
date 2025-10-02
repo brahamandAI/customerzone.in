@@ -231,7 +231,6 @@ const reportRoutes = require('./routes/reports');
 const notificationRoutes = require('./routes/notifications');
 const categoryRoutes = require('./routes/categories');
 const paymentRoutes = require('./routes/payments');
-const whatsappWebhookRoutes = require('./routes/webhooks.whatsapp');
 const testNotificationRoutes = require('./routes/test-notifications');
 const financeRoutes = require('./routes/finance');
 
@@ -245,7 +244,6 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/payments', paymentRoutes);
-app.use('/webhooks', whatsappWebhookRoutes);
 app.use('/api/test-notifications', testNotificationRoutes);
 app.use('/api/finance', financeRoutes);
 

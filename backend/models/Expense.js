@@ -535,7 +535,10 @@ expenseSchema.virtual('isOverdue').get(function() {
 
 // Virtual for total attachments size
 expenseSchema.virtual('totalAttachmentsSize').get(function() {
-  return this.attachments.reduce((total, attachment) => total + attachment.size, 0);
+  if (!this.attachments || !Array.isArray(this.attachments)) {
+    return 0;
+  }
+  return this.attachments.reduce((total, attachment) => total + (attachment.size || 0), 0);
 });
 
 // Indexes for performance
@@ -623,7 +626,7 @@ expenseSchema.methods.addApproval = function(approver, level, action, comments, 
       this.pendingApprovers = [];
     } else {
       // Remove current approver and keep pending ones
-      this.pendingApprovers = this.pendingApprovers.filter(pa => pa.level !== level);
+      this.pendingApprovers = (this.pendingApprovers || []).filter(pa => pa.level !== level);
     }
   } else if (action === 'rejected') {
     this.status = 'rejected';
@@ -646,7 +649,7 @@ expenseSchema.methods.addComment = function(user, text, isInternal = false) {
 // Method to check if user can approve
 expenseSchema.methods.canUserApprove = function(user) {
   // Check if user is in pending approvers
-  return this.pendingApprovers.some(pa => 
+  return (this.pendingApprovers || []).some(pa => 
     pa.approver.toString() === user._id.toString()
   );
 };
@@ -658,7 +661,7 @@ expenseSchema.methods.needsReceipt = function(site) {
 
 // Method to check if expense has receipt
 expenseSchema.methods.hasReceipt = function() {
-  return this.attachments.some(attachment => attachment.isReceipt);
+  return (this.attachments || []).some(attachment => attachment.isReceipt);
 };
 
 // Method to calculate reimbursement amount
@@ -668,7 +671,7 @@ expenseSchema.methods.calculateReimbursement = function() {
   
   // Check policy violations
   if (!this.policyCompliance.isCompliant) {
-    const criticalViolations = this.policyCompliance.violations.filter(v => v.severity === 'critical');
+    const criticalViolations = (this.policyCompliance?.violations || []).filter(v => v.severity === 'critical');
     if (criticalViolations.length > 0) {
       reimbursableAmount = 0; // No reimbursement for critical violations
     }

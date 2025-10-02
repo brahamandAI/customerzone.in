@@ -31,6 +31,16 @@ import EditSite from './pages/EditSite';
 import ResetPassword from './pages/ResetPassword';
 import AllSitesApproval from './pages/AllSitesApproval';
 import FinanceAIChat from './components/FinanceAIChat';
+import PendingApprovalsPage from './pages/PendingApprovalsPage';
+import TotalAmountPage from './pages/TotalAmountPage';
+import TotalExpensesPage from './pages/TotalExpensesPage';
+import ApprovedThisMonthPage from './pages/ApprovedThisMonthPage';
+import BudgetUtilizationPage from './pages/BudgetUtilizationPage';
+import TotalUsersPage from './pages/TotalUsersPage';
+import TotalSitesPage from './pages/TotalSitesPage';
+import SystemExpensesPage from './pages/SystemExpensesPage';
+import PaymentProcessedPage from './pages/PaymentProcessedPage';
+import PendingExpensesPage from './pages/PendingExpensesPage';
 
 // PrivateRoute component to protect routes
 const PrivateRoute = ({ children }) => {
@@ -102,6 +112,58 @@ function Layout() {
         <Route path="/all-sites-approval" element={
           <PrivateRoute>
             <AllSitesApproval />
+          </PrivateRoute>
+        } />
+        
+        {/* Card Detail Pages */}
+        <Route path="/pending-approvals" element={
+          <PrivateRoute>
+            <PendingApprovalsPage />
+          </PrivateRoute>
+        } />
+        <Route path="/total-amount" element={
+          <PrivateRoute>
+            <TotalAmountPage />
+          </PrivateRoute>
+        } />
+        <Route path="/total-expenses" element={
+          <PrivateRoute>
+            <TotalExpensesPage />
+          </PrivateRoute>
+        } />
+        <Route path="/approved-this-month" element={
+          <PrivateRoute>
+            <ApprovedThisMonthPage />
+          </PrivateRoute>
+        } />
+        <Route path="/budget-utilization" element={
+          <PrivateRoute>
+            <BudgetUtilizationPage />
+          </PrivateRoute>
+        } />
+        <Route path="/total-users" element={
+          <PrivateRoute>
+            <TotalUsersPage />
+          </PrivateRoute>
+        } />
+        <Route path="/total-sites" element={
+          <PrivateRoute>
+            <TotalSitesPage />
+          </PrivateRoute>
+        } />
+        <Route path="/system-expenses" element={
+          <PrivateRoute>
+            <SystemExpensesPage />
+          </PrivateRoute>
+        } />
+        <Route path="/payment-processed" element={
+          <PrivateRoute>
+            <PaymentProcessedPage />
+          </PrivateRoute>
+        } />
+        <Route path="/pending-expenses" element={
+          <PrivateRoute>
+            <PendingExpensesPage />
           </PrivateRoute>
         } />
         

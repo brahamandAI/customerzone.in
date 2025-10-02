@@ -281,7 +281,7 @@ router.post('/create', protect, authorize('l3_approver', 'finance'), async (req,
 });
 
 // Get all users (Admin only)
-router.get('/all', protect, authorize('l3_approver', 'finance'), async (req, res) => {
+router.get('/all', protect, authorize('l2_approver', 'l3_approver', 'finance'), async (req, res) => {
   try {
     const users = await User.find({ isActive: true })
       .populate('site', 'name code')

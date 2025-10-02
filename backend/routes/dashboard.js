@@ -59,9 +59,11 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
     totalExpenses: userExpenses.length,
     totalAmount: userExpenses.reduce((sum, exp) => sum + exp.amount, 0),
     pendingExpenses: userExpenses.filter(exp => 
-      ['submitted', 'under_review', 'approved_l1', 'approved_l2'].includes(exp.status)
+      ['submitted', 'under_review'].includes(exp.status)
     ).length,
-    approvedExpenses: userExpenses.filter(exp => exp.status === 'approved').length,
+    approvedExpenses: userExpenses.filter(exp => 
+      ['approved', 'reimbursed', 'payment_processed', 'approved_l1', 'approved_l2', 'approved_l3', 'approved_finance'].includes(exp.status)
+    ).length,
     rejectedExpenses: userExpenses.filter(exp => exp.status === 'rejected').length
   };
 
@@ -110,7 +112,7 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
     // For submitters, count their own pending expenses
     pendingApprovalsCount = await Expense.countDocuments({
       submittedBy: userId,
-      status: { $in: ['submitted', 'under_review', 'approved_l1', 'approved_l2'] },
+      status: { $in: ['submitted', 'under_review'] },
       isActive: true,
       isDeleted: false
     });
@@ -158,7 +160,7 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
           approvedAmount: {
             $sum: {
               $cond: [
-                { $in: ['$status', ['approved', 'reimbursed', 'payment_processed']] },
+                { $in: ['$status', ['approved', 'reimbursed', 'payment_processed', 'approved_l1', 'approved_l2', 'approved_l3', 'approved_finance']] },
                 '$amount',
                 0
               ]
@@ -167,7 +169,7 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
           pendingAmount: {
             $sum: {
               $cond: [
-                { $in: ['$status', ['submitted', 'under_review', 'approved_l1', 'approved_l2', 'approved_l3', 'approved_finance']] },
+                { $in: ['$status', ['submitted', 'under_review']] },
                 '$amount',
                 0
               ]
@@ -532,6 +534,124 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
       }
     ]);
 
+    // For L1 approver, count only L2 approved expenses
+    let l1ApprovedStats = { currentMonthApprovedCount: 0, currentMonthApprovedAmount: 0 };
+    if (userRole === 'l1_approver') {
+      console.log('🔍 Calculating L1 approver stats - only L2 approved expenses...');
+      l1ApprovedStats = await Expense.aggregate([
+        {
+          $match: {
+            'approvalHistory.approver': userId,
+            isActive: true,
+            isDeleted: false,
+            status: 'approved_l2'  // Only L2 approved expenses
+          }
+        },
+        {
+          $unwind: '$approvalHistory'
+        },
+        {
+          $match: {
+            'approvalHistory.approver': userId,
+            'approvalHistory.action': 'approved',
+            $expr: {
+              $and: [
+                { $gte: [{ $toDate: '$approvalHistory.date' }, currentMonth] },
+                { $lt: [{ $toDate: '$approvalHistory.date' }, nextMonth] }
+              ]
+            }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            currentMonthApprovedCount: { $sum: 1 },
+            currentMonthApprovedAmount: { $sum: '$amount' }
+          }
+        }
+      ]);
+      l1ApprovedStats = l1ApprovedStats[0] || { currentMonthApprovedCount: 0, currentMonthApprovedAmount: 0 };
+      console.log('🔍 L1 Approver Stats:', l1ApprovedStats);
+    }
+
+    // For L2 approver, count only L3 approved expenses
+    let l2ApprovedStats = { currentMonthApprovedCount: 0, currentMonthApprovedAmount: 0 };
+    if (userRole === 'l2_approver') {
+      console.log('🔍 Calculating L2 approver stats - only L3 approved expenses...');
+      l2ApprovedStats = await Expense.aggregate([
+        {
+          $match: {
+            'approvalHistory.approver': userId,
+            isActive: true,
+            isDeleted: false,
+            status: 'approved_l3'  // Only L3 approved expenses
+          }
+        },
+        {
+          $unwind: '$approvalHistory'
+        },
+        {
+          $match: {
+            'approvalHistory.approver': userId,
+            'approvalHistory.action': 'approved',
+            $expr: {
+              $and: [
+                { $gte: [{ $toDate: '$approvalHistory.date' }, currentMonth] },
+                { $lt: [{ $toDate: '$approvalHistory.date' }, nextMonth] }
+              ]
+            }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            currentMonthApprovedCount: { $sum: 1 },
+            currentMonthApprovedAmount: { $sum: '$amount' }
+          }
+        }
+      ]);
+      l2ApprovedStats = l2ApprovedStats[0] || { currentMonthApprovedCount: 0, currentMonthApprovedAmount: 0 };
+    }
+
+    // For L3 approver, count only Finance approved expenses
+    let l3ApprovedStats = { currentMonthApprovedCount: 0, currentMonthApprovedAmount: 0 };
+    if (userRole === 'l3_approver') {
+      console.log('🔍 Calculating L3 approver stats - only Finance approved expenses...');
+      l3ApprovedStats = await Expense.aggregate([
+        {
+          $match: {
+            'approvalHistory.approver': userId,
+            isActive: true,
+            isDeleted: false,
+            status: 'approved_finance'  // Only Finance approved expenses
+          }
+        },
+        {
+          $unwind: '$approvalHistory'
+        },
+        {
+          $match: {
+            'approvalHistory.approver': userId,
+            'approvalHistory.action': 'approved',
+            $expr: {
+              $and: [
+                { $gte: [{ $toDate: '$approvalHistory.date' }, currentMonth] },
+                { $lt: [{ $toDate: '$approvalHistory.date' }, nextMonth] }
+              ]
+            }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            currentMonthApprovedCount: { $sum: 1 },
+            currentMonthApprovedAmount: { $sum: '$amount' }
+          }
+        }
+      ]);
+      l3ApprovedStats = l3ApprovedStats[0] || { currentMonthApprovedCount: 0, currentMonthApprovedAmount: 0 };
+    }
+
     console.log('📊 Raw current month approval stats result:', currentMonthApprovalStats);
 
     // Test query to check if there are any approval history entries
@@ -570,10 +690,29 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
         rejectedCount: 0,
         totalAmount: 0
       }),
-      // Add current month stats
-      approvedCount: currentMonthApprovalStats[0]?.currentMonthApprovedCount || 0,
+      // Add current month stats - use role specific stats
+      approvedCount: userRole === 'l1_approver' 
+        ? l1ApprovedStats.currentMonthApprovedCount 
+        : userRole === 'l2_approver'
+        ? l2ApprovedStats.currentMonthApprovedCount
+        : userRole === 'l3_approver'
+        ? l3ApprovedStats.currentMonthApprovedCount
+        : (currentMonthApprovalStats[0]?.currentMonthApprovedCount || 0),
       rejectedCount: currentMonthApprovalStats[0]?.currentMonthRejectedCount || 0,
-      currentMonthApprovedAmount: currentMonthApprovalStats[0]?.currentMonthApprovedAmount || 0
+      approvedAmount: userRole === 'l1_approver'
+        ? l1ApprovedStats.currentMonthApprovedAmount
+        : userRole === 'l2_approver'
+        ? l2ApprovedStats.currentMonthApprovedAmount
+        : userRole === 'l3_approver'
+        ? l3ApprovedStats.currentMonthApprovedAmount
+        : (currentMonthApprovalStats[0]?.currentMonthApprovedAmount || 0),
+      currentMonthApprovedAmount: userRole === 'l1_approver'
+        ? l1ApprovedStats.currentMonthApprovedAmount
+        : userRole === 'l2_approver'
+        ? l2ApprovedStats.currentMonthApprovedAmount
+        : userRole === 'l3_approver'
+        ? l3ApprovedStats.currentMonthApprovedAmount
+        : (currentMonthApprovalStats[0]?.currentMonthApprovedAmount || 0)
     };
 
     console.log('Approval stats calculated:', {
@@ -581,11 +720,28 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
       currentMonth: currentMonthApprovalStats[0] || { currentMonthApprovedCount: 0, currentMonthRejectedCount: 0, currentMonthApprovedAmount: 0 },
       finalStats: dashboardData.approvalStats
     });
+    
+    console.log('🔍 Final approval stats for user role:', userRole);
+    console.log('🔍 L1 Stats:', l1ApprovedStats);
+    console.log('🔍 L2 Stats:', l2ApprovedStats);
+    console.log('🔍 L3 Stats:', l3ApprovedStats);
 
-    // Use the current month stats for monthlyStats as well
+    // Use the current month stats for monthlyStats as well - use role specific stats
     dashboardData.monthlyStats = {
-      monthlyApprovedAmount: currentMonthApprovalStats[0]?.currentMonthApprovedAmount || 0,
-      monthlyApprovedCount: currentMonthApprovalStats[0]?.currentMonthApprovedCount || 0
+      monthlyApprovedAmount: userRole === 'l1_approver'
+        ? l1ApprovedStats.currentMonthApprovedAmount
+        : userRole === 'l2_approver'
+        ? l2ApprovedStats.currentMonthApprovedAmount
+        : userRole === 'l3_approver'
+        ? l3ApprovedStats.currentMonthApprovedAmount
+        : (currentMonthApprovalStats[0]?.currentMonthApprovedAmount || 0),
+      monthlyApprovedCount: userRole === 'l1_approver'
+        ? l1ApprovedStats.currentMonthApprovedCount
+        : userRole === 'l2_approver'
+        ? l2ApprovedStats.currentMonthApprovedCount
+        : userRole === 'l3_approver'
+        ? l3ApprovedStats.currentMonthApprovedCount
+        : (currentMonthApprovalStats[0]?.currentMonthApprovedCount || 0)
     };
       }
 

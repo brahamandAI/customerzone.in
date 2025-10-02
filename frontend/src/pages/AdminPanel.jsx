@@ -54,8 +54,11 @@ const AdminPanel = () => {
 
         try {
           // Try to get users data
+          console.log('🔍 Fetching users data...');
           const usersRes = await userAPI.getUsers();
           console.log('👥 Users API response:', usersRes);
+          console.log('👥 Users API response data:', usersRes.data);
+          console.log('👥 Users API response success:', usersRes.data?.success);
           
           if (usersRes.data && usersRes.data.data) {
             const users = usersRes.data.data;
@@ -65,25 +68,49 @@ const AdminPanel = () => {
             console.log('✅ Users data loaded:', { totalUsers, activeUsers, recentUsersCount: recentUsers.length });
           } else {
             console.warn('⚠️ Users API returned no data');
-            // Set some default values for demo
-            totalUsers = 15; // Demo value
-            activeUsers = 12; // Demo value
-            recentUsers = [
-              { name: 'Demo User 1', role: 'submitter', site: { name: 'Site A' }, status: 'active' },
-              { name: 'Demo User 2', role: 'l1_approver', site: { name: 'Site B' }, status: 'active' },
-              { name: 'Demo User 3', role: 'l2_approver', site: { name: 'Site C' }, status: 'active' }
-            ];
+            // Try to get users from different endpoint
+            try {
+              const altUsersRes = await userAPI.getAll();
+              if (altUsersRes.data && altUsersRes.data.data) {
+                const users = altUsersRes.data.data;
+                totalUsers = users.length;
+                activeUsers = users.filter(u => u.isActive !== false).length;
+                recentUsers = users.slice(0, 5);
+                console.log('✅ Users data loaded from alternative endpoint:', { totalUsers, activeUsers, recentUsersCount: recentUsers.length });
+              } else {
+                totalUsers = 0;
+                activeUsers = 0;
+                recentUsers = [];
+              }
+            } catch (altErr) {
+              console.warn('⚠️ Alternative users API also failed:', altErr);
+              totalUsers = 0;
+              activeUsers = 0;
+              recentUsers = [];
+            }
           }
         } catch (userErr) {
           console.warn('⚠️ Users API failed:', userErr);
-          // Set demo values
-          totalUsers = 15;
-          activeUsers = 12;
-          recentUsers = [
-            { name: 'Demo User 1', role: 'submitter', site: { name: 'Site A' }, status: 'active' },
-            { name: 'Demo User 2', role: 'l1_approver', site: { name: 'Site B' }, status: 'active' },
-            { name: 'Demo User 3', role: 'l2_approver', site: { name: 'Site C' }, status: 'active' }
-          ];
+          // Try alternative approach to get users
+          try {
+            const altUsersRes = await userAPI.getAll();
+            if (altUsersRes.data && altUsersRes.data.data) {
+              const users = altUsersRes.data.data;
+              totalUsers = users.length;
+              activeUsers = users.filter(u => u.isActive !== false).length;
+              recentUsers = users.slice(0, 5);
+              console.log('✅ Users data loaded from fallback endpoint:', { totalUsers, activeUsers, recentUsersCount: recentUsers.length });
+            } else {
+              totalUsers = 0;
+              activeUsers = 0;
+              recentUsers = [];
+            }
+          } catch (fallbackErr) {
+            console.warn('⚠️ Fallback users API also failed:', fallbackErr);
+            totalUsers = 0;
+            activeUsers = 0;
+            recentUsers = [];
+          }
         }
 
         try {
@@ -154,20 +181,16 @@ const AdminPanel = () => {
         
         setError(err.message || 'Failed to load admin data');
         
-        // Set demo values instead of zeros
+        // Set empty values instead of fake data
         setStats({
-          totalUsers: 15,
-          totalSites: 3,
-          totalCategories: 8,
-          activeUsers: 12,
+          totalUsers: 0,
+          totalSites: 0,
+          totalCategories: 0,
+          activeUsers: 0,
           pendingApprovals: pendingApprovalsCount || 0,
-          systemHealth: 75
+          systemHealth: 0
         });
-        setRecentUsers([
-          { name: 'Demo User 1', role: 'submitter', site: { name: 'Site A' }, status: 'active' },
-          { name: 'Demo User 2', role: 'l1_approver', site: { name: 'Site B' }, status: 'active' },
-          { name: 'Demo User 3', role: 'l2_approver', site: { name: 'Site C' }, status: 'active' }
-        ]);
+        setRecentUsers([]);
         setLoading(false);
       }
     }

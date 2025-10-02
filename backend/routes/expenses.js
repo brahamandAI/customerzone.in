@@ -546,13 +546,30 @@ router.post('/create', protect, authorize('submitter', 'l1_approver', 'l2_approv
 });
 
 // Get all expenses
-router.get('/all', async (req, res) => {
+router.get('/all', protect, async (req, res) => {
   try {
-    const expenses = await Expense.find({ isActive: true, isDeleted: false })
+    const user = req.user;
+    let query = { isActive: true, isDeleted: false };
+
+    // Role-based filtering
+    if (user.role === 'submitter') {
+      // Submitters can only see their own expenses
+      query.submittedBy = user._id;
+    } else if (user.role === 'l1_approver' || user.role === 'l2_approver') {
+      // L1 and L2 approvers can only see expenses from their site
+      query.site = user.site?._id;
+    }
+    // L3 approvers and Finance can see all expenses (no additional filtering)
+
+    console.log('🔍 Expenses query for user role:', user.role, 'Query:', query);
+
+    const expenses = await Expense.find(query)
       .select('expenseNumber title amount category expenseDate submittedBy site status policyFlags riskScore')
       .populate('submittedBy', 'name email department')
-      .populate('site', 'name code')
+      .populate('site', 'name code fullAddress budgetUtilization remainingBudget budgetStatus isOperating')
       .sort({ createdAt: -1 });
+
+    console.log('📊 Found expenses count:', expenses.length);
 
     res.json({
       success: true,
