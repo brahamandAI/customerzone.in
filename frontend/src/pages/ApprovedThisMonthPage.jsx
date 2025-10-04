@@ -143,58 +143,22 @@ const ApprovedThisMonthPage = () => {
           console.log('📊 L1 Approver - Filtered approved expenses count:', approvedExpenses.length);
           console.log('📊 L1 Approver - Filtered approved expenses sample:', approvedExpenses.slice(0, 3));
         } else if (user?.role?.toLowerCase() === 'l2_approver') {
-          console.log('🔍 L2 Approver - Filtering approved expenses for site:', user.site?._id);
+          console.log('🔍 L2 Approver - Showing all approved expenses from all sites');
           console.log('🔍 L2 Approver - Raw approved expenses count:', approvedExpenses.length);
           console.log('🔍 L2 Approver - Raw approved expenses sample:', approvedExpenses.slice(0, 3));
           
-          // L2 approver: show all approved expenses from their site
-          approvedExpenses = approvedExpenses.filter(exp => {
-            // Try multiple ways to match site
-            const matchesSite = exp.site === user.site?._id;
-            const matchesSiteId = exp.site?._id === user.site?._id;
-            const matchesSiteString = exp.site === user.site?._id?.toString();
-            
-            console.log('🔍 L2 Approver - Checking expense site match:', {
-              expenseId: exp._id,
-              expenseSite: exp.site,
-              expenseSiteId: exp.site?._id,
-              userSiteId: user.site?._id,
-              userSiteIdString: user.site?._id?.toString(),
-              matchesSite,
-              matchesSiteId,
-              matchesSiteString
-            });
-            
-            return matchesSite || matchesSiteId || matchesSiteString;
-          });
+          // L2 approver: show all approved expenses from all sites
+          // No filtering needed - show all approved expenses
           
           console.log('📊 L2 Approver - Filtered approved expenses count:', approvedExpenses.length);
           console.log('📊 L2 Approver - Filtered approved expenses sample:', approvedExpenses.slice(0, 3));
         } else if (user?.role?.toLowerCase() === 'l3_approver') {
-          console.log('🔍 L3 Approver - Filtering approved expenses for site:', user.site?._id);
+          console.log('🔍 L3 Approver - Showing all approved expenses from all sites');
           console.log('🔍 L3 Approver - Raw approved expenses count:', approvedExpenses.length);
           console.log('🔍 L3 Approver - Raw approved expenses sample:', approvedExpenses.slice(0, 3));
           
-          // L3 approver: show all approved expenses from their site
-          approvedExpenses = approvedExpenses.filter(exp => {
-            // Try multiple ways to match site
-            const matchesSite = exp.site === user.site?._id;
-            const matchesSiteId = exp.site?._id === user.site?._id;
-            const matchesSiteString = exp.site === user.site?._id?.toString();
-            
-            console.log('🔍 L3 Approver - Checking expense site match:', {
-              expenseId: exp._id,
-              expenseSite: exp.site,
-              expenseSiteId: exp.site?._id,
-              userSiteId: user.site?._id,
-              userSiteIdString: user.site?._id?.toString(),
-              matchesSite,
-              matchesSiteId,
-              matchesSiteString
-            });
-            
-            return matchesSite || matchesSiteId || matchesSiteString;
-          });
+          // L3 approver: show all approved expenses from all sites
+          // No filtering needed - show all approved expenses
           
           console.log('📊 L3 Approver - Filtered approved expenses count:', approvedExpenses.length);
           console.log('📊 L3 Approver - Filtered approved expenses sample:', approvedExpenses.slice(0, 3));

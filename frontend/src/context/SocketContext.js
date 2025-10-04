@@ -129,11 +129,30 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on('expense-updated', (data) => {
       console.log('Expense update notification:', data.expenseNumber);
+      
+      // Format status for better display
+      let statusText = data.status;
+      if (data.status === 'approved_l1') {
+        statusText = 'Approved by L1';
+      } else if (data.status === 'approved_l2') {
+        statusText = 'Approved by L2';
+      } else if (data.status === 'approved_l3') {
+        statusText = 'Approved by L3';
+      } else if (data.status === 'approved_finance') {
+        statusText = 'Approved by Finance';
+      } else if (data.status === 'payment_processed') {
+        statusText = 'Payment Processed';
+      } else if (data.status === 'rejected') {
+        statusText = 'Rejected';
+      } else {
+        statusText = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+      }
+      
       setNotifications(prev => [{
         id: data.expenseId,
-        type: data.status === 'approved' ? 'expense_approved' : 'expense_rejected',
-        title: `Expense ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}`,
-        message: `Expense #${data.expenseNumber} ${data.status} - ₹${data.amount.toLocaleString()}`,
+        type: data.status.includes('approved') || data.status === 'payment_processed' ? 'expense_approved' : 'expense_rejected',
+        title: `Expense ${statusText}`,
+        message: `Expense #${data.expenseNumber} ${statusText} - ₹${data.amount.toLocaleString()}`,
         data: data,
         timestamp: new Date(data.timestamp),
         read: false

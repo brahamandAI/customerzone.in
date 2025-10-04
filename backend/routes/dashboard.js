@@ -613,17 +613,18 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
       l2ApprovedStats = l2ApprovedStats[0] || { currentMonthApprovedCount: 0, currentMonthApprovedAmount: 0 };
     }
 
-    // For L3 approver, count only Finance approved expenses
+    // For L3 approver (Super Admin), count ALL expenses they have approved
     let l3ApprovedStats = { currentMonthApprovedCount: 0, currentMonthApprovedAmount: 0 };
     if (userRole === 'l3_approver') {
-      console.log('🔍 Calculating L3 approver stats - only Finance approved expenses...');
+      console.log('🔍 Calculating L3 approver stats - ALL expenses approved by Super Admin...');
       l3ApprovedStats = await Expense.aggregate([
         {
           $match: {
             'approvalHistory.approver': userId,
             isActive: true,
             isDeleted: false,
-            status: 'approved_finance'  // Only Finance approved expenses
+            // Super Admin can see all expenses they approved, not just finance approved
+            status: { $in: ['approved_l3', 'approved_finance', 'reimbursed', 'payment_processed'] }
           }
         },
         {
@@ -761,11 +762,18 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
           } : 'Site not found'
         });
 
-        // Calculate real-time budget utilization for current month (same as submitter)
+        // Calculate real-time budget utilization for current month
+        // L1 approver: only their site, L2/L3 approver: all sites
+        let siteFilter = {};
+        if (userRole === 'l1_approver') {
+          siteFilter = { site: userSite };
+        }
+        // L2 and L3 approvers see all sites (no site filter)
+
         const currentMonthExpenses = await Expense.aggregate([
           {
             $match: {
-              site: userSite,
+              ...siteFilter,
               isActive: true,
               isDeleted: false,
               expenseDate: { $gte: currentMonth, $lt: nextMonth }
@@ -802,15 +810,29 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
         // Recent activities for L1/L2 approver (expenses they've approved/rejected)
         console.log('🔍 Processing recent activities for L1/L2 approver...');
         
-        const approverRecentExpenses = await Expense.find({
-          'approvalHistory.approver': userId,
-          isActive: true,
-          isDeleted: false
-        })
-        .populate('site', 'name code')
-        .populate('submittedBy', 'name email')
-        .sort({ updatedAt: -1 })
-        .limit(10);
+        let approverRecentExpenses;
+        if (userRole === 'l1_approver') {
+          // L1 approver: only expenses they've approved from their site
+          approverRecentExpenses = await Expense.find({
+            'approvalHistory.approver': userId,
+            isActive: true,
+            isDeleted: false
+          })
+          .populate('site', 'name code')
+          .populate('submittedBy', 'name email')
+          .sort({ updatedAt: -1 })
+          .limit(10);
+        } else {
+          // L2/L3 approver: all expenses from all sites
+          approverRecentExpenses = await Expense.find({
+            isActive: true,
+            isDeleted: false
+          })
+          .populate('site', 'name code')
+          .populate('submittedBy', 'name email')
+          .sort({ updatedAt: -1 })
+          .limit(10);
+        }
 
         console.log(`📝 Found ${approverRecentExpenses.length} recent expenses for L1/L2 approver`);
 
@@ -862,63 +884,110 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
         // Top expense categories for L1/L2/L3 approver (expenses they've approved/rejected)
         console.log('🔍 Processing top categories for L1/L2/L3 approver...');
         
-        const topCategories = await Expense.aggregate([
-          {
-            $match: {
-              'approvalHistory.approver': userId,
-              isActive: true,
-              isDeleted: false
+        let topCategories;
+        if (userRole === 'l1_approver') {
+          // L1 approver: only expenses they've approved from their site
+          topCategories = await Expense.aggregate([
+            {
+              $match: {
+                'approvalHistory.approver': userId,
+                isActive: true,
+                isDeleted: false
+              }
+            },
+            {
+              $unwind: '$approvalHistory'
+            },
+            {
+              $match: {
+                'approvalHistory.approver': userId
+              }
+            },
+            {
+              $group: {
+                _id: '$category',
+                totalAmount: { $sum: '$amount' },
+                count: { $sum: 1 }
+              }
+            },
+            {
+              $sort: { totalAmount: -1 }
+            },
+            {
+              $limit: 5
             }
-          },
-          {
-            $unwind: '$approvalHistory'
-          },
-          {
-            $match: {
-              'approvalHistory.approver': userId
+          ]);
+        } else {
+          // L2/L3 approver: all expenses from all sites
+          topCategories = await Expense.aggregate([
+            {
+              $match: {
+                isActive: true,
+                isDeleted: false
+              }
+            },
+            {
+              $group: {
+                _id: '$category',
+                totalAmount: { $sum: '$amount' },
+                count: { $sum: 1 }
+              }
+            },
+            {
+              $sort: { totalAmount: -1 }
+            },
+            {
+              $limit: 5
             }
-          },
-          {
-            $group: {
-              _id: '$category',
-              totalAmount: { $sum: '$amount' },
-              count: { $sum: 1 }
-            }
-          },
-          {
-            $sort: { totalAmount: -1 }
-          },
-          {
-            $limit: 5
-          }
-        ]);
+          ]);
+        }
 
         console.log(`📊 Found ${topCategories.length} top categories for L1/L2 approver`);
 
         // Calculate percentages
-        const totalApproverExpenses = await Expense.aggregate([
-          {
-            $match: {
-              'approvalHistory.approver': userId,
-              isActive: true,
-              isDeleted: false
+        let totalApproverExpenses;
+        if (userRole === 'l1_approver') {
+          // L1 approver: only expenses they've approved from their site
+          totalApproverExpenses = await Expense.aggregate([
+            {
+              $match: {
+                'approvalHistory.approver': userId,
+                isActive: true,
+                isDeleted: false
+              }
+            },
+            {
+              $unwind: '$approvalHistory'
+            },
+            {
+              $match: {
+                'approvalHistory.approver': userId
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalAmount: { $sum: '$amount' }
+              }
             }
-          },
-          {
-            $unwind: '$approvalHistory'
-          },
-          {
-            $match: {
-              'approvalHistory.approver': userId
+          ]);
+        } else {
+          // L2/L3 approver: all expenses from all sites
+          totalApproverExpenses = await Expense.aggregate([
+            {
+              $match: {
+                isActive: true,
+                isDeleted: false
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalAmount: { $sum: '$amount' }
+              }
             }
-          },
-          {
-            $group: {
-              _id: null,
-              totalAmount: { $sum: '$amount' }
-            }
-          }
-        ]);
+          ]);
+        }
 
         const approverTotalAmount = totalApproverExpenses[0]?.totalAmount || 0;
         console.log(`💰 Total L1/L2/L3 approver amount: ₹${approverTotalAmount.toLocaleString()}`);
@@ -1019,9 +1088,10 @@ router.get('/overview', protect, authorize('submitter', 'l1_approver', 'l2_appro
         // Top categories for Finance and Super Admin (system-wide)
         let matchFilter = { isActive: true, isDeleted: false };
         
-        if (userRole !== 'l3_approver' && userRole !== 'finance') {
-          matchFilter.site = req.user.site?._id;
+        if (userRole === 'l1_approver') {
+          matchFilter.site = req.user.site?._id; // L1 approver: only their site
         }
+        // L2 approvers, L3 approvers and Finance can see all expenses (no additional filtering)
 
         const topCategories = await Expense.aggregate([
           { $match: matchFilter },
@@ -1128,9 +1198,10 @@ router.get('/expense-stats', protect, authorize('submitter', 'l1_approver', 'l2_
   // Apply filters based on user role
   if (userRole === 'submitter') {
     matchFilter.submittedBy = userId;
-  } else if (userRole !== 'l3_approver' && userRole !== 'finance') {
-    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
+  } else if (userRole === 'l1_approver') {
+    matchFilter.site = req.user.site?._id; // L1 approver: only their site
   }
+  // L2 approvers, L3 approvers and Finance can see all expenses (no additional filtering)
 
   // Apply additional filters
   if (category) {
@@ -1329,9 +1400,10 @@ router.get('/recent-activity', protect, authorize('submitter', 'l1_approver', 'l
   // Filter based on user role
   if (userRole === 'submitter') {
     matchFilter.submittedBy = userId;
-  } else if (userRole !== 'l3_approver' && userRole !== 'finance') {
-    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
+  } else if (userRole === 'l1_approver') {
+    matchFilter.site = req.user.site?._id; // L1 approver: only their site
   }
+  // L2 approvers, L3 approvers and Finance can see all expenses (no additional filtering)
 
   const recentExpenses = await Expense.find(matchFilter)
     .populate('submittedBy', 'name email')
@@ -1416,10 +1488,18 @@ router.get('/analytics', protect, authorize('l2_approver', 'l3_approver', 'finan
   };
 
   // Apply site filter
-  if (userRole !== 'l3_approver' && userRole !== 'finance') {
-    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
-  } else if (site) {
-    matchFilter.site = site;
+  if (userRole === 'l1_approver') {
+    matchFilter.site = req.user.site?._id; // L1 approver: only their site
+  } else if (userRole === 'l2_approver') {
+    // L2 approver: all sites (no site filter)
+    if (site) {
+      matchFilter.site = site; // Allow filtering by specific site if requested
+    }
+  } else if (userRole === 'l3_approver' || userRole === 'finance') {
+    // L3 approver and Finance: all sites
+    if (site) {
+      matchFilter.site = site; // Allow filtering by specific site if requested
+    }
   }
 
   // Get comprehensive analytics

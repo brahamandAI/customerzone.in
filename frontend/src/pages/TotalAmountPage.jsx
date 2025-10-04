@@ -200,36 +200,17 @@ const TotalAmountPage = () => {
       console.log('📊 Filtered expenses count for L1 approver:', filteredExpenses.length);
       console.log('📊 Filtered expenses sample:', filteredExpenses.slice(0, 3));
     } else if (user?.role?.toLowerCase() === 'l2_approver') {
-      console.log('🔍 Filtering for L2 approver with site ID:', user.site?._id);
-      console.log('🔍 User site object:', user.site);
+      console.log('🔍 L2 approver: showing all expenses from all sites');
       console.log('🔍 Raw expenses data sample:', expensesData.slice(0, 3));
       
-      // L2 approver: show all expenses from their site
-      filteredExpenses = expensesData.filter(exp => {
-        // Try multiple ways to match site
-        const matchesSite = exp.site === user.site?._id;
-        const matchesSiteId = exp.site?._id === user.site?._id;
-        const matchesSiteString = exp.site === user.site?._id?.toString();
-        
-        console.log('🔍 Checking expense site match:', {
-          expenseId: exp._id,
-          expenseSite: exp.site,
-          expenseSiteId: exp.site?._id,
-          userSiteId: user.site?._id,
-          userSiteIdString: user.site?._id?.toString(),
-          matchesSite,
-          matchesSiteId,
-          matchesSiteString
-        });
-        
-        return matchesSite || matchesSiteId || matchesSiteString;
-      });
+      // L2 approver: show all expenses from all sites
+      filteredExpenses = expensesData;
       console.log('📊 Filtered expenses count for L2 approver:', filteredExpenses.length);
       console.log('📊 Filtered expenses sample:', filteredExpenses.slice(0, 3));
     } else if (user?.role?.toLowerCase() === 'l3_approver') {
-      console.log('🔍 Filtering for L3 approver - all expenses');
+      console.log('🔍 L3 approver: showing all expenses from all sites');
       console.log('🔍 Raw expenses data sample:', expensesData.slice(0, 3));
-      // L3 approver: show all expenses
+      // L3 approver: show all expenses from all sites
       filteredExpenses = expensesData;
       console.log('📊 Filtered expenses count for L3 approver:', filteredExpenses.length);
       console.log('📊 Filtered expenses sample:', filteredExpenses.slice(0, 3));

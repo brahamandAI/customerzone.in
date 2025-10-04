@@ -53,10 +53,18 @@ router.get('/expense-summary', protect, checkPermission('canViewReports'), async
   };
 
   // Apply role-based filtering
-  if (userRole !== 'l3_approver' && userRole !== 'finance') {
-    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
-  } else if (site) {
-    matchFilter.site = site;
+  if (userRole === 'l1_approver') {
+    matchFilter.site = req.user.site?._id; // L1 approver: only their site
+  } else if (userRole === 'l2_approver') {
+    // L2 approver: all sites (no site filter)
+    if (site) {
+      matchFilter.site = site; // Allow filtering by specific site if requested
+    }
+  } else if (userRole === 'l3_approver' || userRole === 'finance') {
+    // L3 approver and Finance: all sites
+    if (site) {
+      matchFilter.site = site; // Allow filtering by specific site if requested
+    }
   }
 
   // Apply additional filters
@@ -148,10 +156,18 @@ router.get('/expense-summary', protect, checkPermission('canViewReports'), async
   };
 
   // Apply role-based filtering for previous period
-  if (userRole !== 'l3_approver' && userRole !== 'finance') {
-    previousMatchFilter.site = req.user.site?._id;
-  } else if (site) {
-    previousMatchFilter.site = site;
+  if (userRole === 'l1_approver') {
+    previousMatchFilter.site = req.user.site?._id; // L1 approver: only their site
+  } else if (userRole === 'l2_approver') {
+    // L2 approver: all sites (no site filter)
+    if (site) {
+      previousMatchFilter.site = site; // Allow filtering by specific site if requested
+    }
+  } else if (userRole === 'l3_approver' || userRole === 'finance') {
+    // L3 approver and Finance: all sites
+    if (site) {
+      previousMatchFilter.site = site; // Allow filtering by specific site if requested
+    }
   }
 
   // Apply additional filters for previous period
@@ -350,10 +366,18 @@ router.get('/expense-details', protect, checkPermission('canViewReports'), async
   }
 
   // Role-based filtering
-  if (userRole !== 'l3_approver' && userRole !== 'finance') {
-    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
-  } else if (site) {
-    matchFilter.site = site;
+  if (userRole === 'l1_approver') {
+    matchFilter.site = req.user.site?._id; // L1 approver: only their site
+  } else if (userRole === 'l2_approver') {
+    // L2 approver: all sites (no site filter)
+    if (site) {
+      matchFilter.site = site; // Allow filtering by specific site if requested
+    }
+  } else if (userRole === 'l3_approver' || userRole === 'finance') {
+    // L3 approver and Finance: all sites
+    if (site) {
+      matchFilter.site = site; // Allow filtering by specific site if requested
+    }
   }
 
   // Additional filters
@@ -546,10 +570,18 @@ router.get('/vehicle-km', protect, checkPermission('canViewReports'), asyncHandl
   };
 
   // Role-based filtering
-  if (userRole !== 'l3_approver' && userRole !== 'finance') {
-    matchFilter.site = req.user.site?._id; // Use optional chaining to avoid error
-  } else if (site) {
-    matchFilter.site = site;
+  if (userRole === 'l1_approver') {
+    matchFilter.site = req.user.site?._id; // L1 approver: only their site
+  } else if (userRole === 'l2_approver') {
+    // L2 approver: all sites (no site filter)
+    if (site) {
+      matchFilter.site = site; // Allow filtering by specific site if requested
+    }
+  } else if (userRole === 'l3_approver' || userRole === 'finance') {
+    // L3 approver and Finance: all sites
+    if (site) {
+      matchFilter.site = site; // Allow filtering by specific site if requested
+    }
   }
 
   if (vehicleNumber) {

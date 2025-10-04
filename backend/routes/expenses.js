@@ -555,11 +555,11 @@ router.get('/all', protect, async (req, res) => {
     if (user.role === 'submitter') {
       // Submitters can only see their own expenses
       query.submittedBy = user._id;
-    } else if (user.role === 'l1_approver' || user.role === 'l2_approver') {
-      // L1 and L2 approvers can only see expenses from their site
+    } else if (user.role === 'l1_approver') {
+      // L1 approvers can only see expenses from their site
       query.site = user.site?._id;
     }
-    // L3 approvers and Finance can see all expenses (no additional filtering)
+    // L2 approvers, L3 approvers and Finance can see all expenses (no additional filtering)
 
     console.log('🔍 Expenses query for user role:', user.role, 'Query:', query);
 
@@ -630,14 +630,14 @@ router.get('/pending', protect, authorize('l1_approver', 'l2_approver', 'l3_appr
     
     // Role-based filtering
     let statusFilter = {};
-    if (userRole === 'L1_APPROVER') {
+    if (userRole === 'l1_approver') {
       // Include newly created flagged expenses which are marked under_review
       statusFilter = { status: { $in: ['submitted', 'under_review'] } };
-    } else if (userRole === 'L2_APPROVER') {
+    } else if (userRole === 'l2_approver') {
       statusFilter = { status: 'approved_l1' };
-    } else if (userRole === 'L3_APPROVER') {
+    } else if (userRole === 'l3_approver') {
       statusFilter = { status: 'approved_l2' };
-    } else if (userRole === 'FINANCE') {
+    } else if (userRole === 'finance') {
       statusFilter = { status: 'approved_l3' };
     } else {
       // For other roles, show all pending including under_review (flagged cases)
@@ -813,9 +813,19 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
       paymentDate
     } = req.body;
 
+    console.log('🚀 Approval request received:', {
+      expenseId,
+      action,
+      level,
+      approverId: approverIdFromBody,
+      user: req.user?.name,
+      userRole: req.user?.role
+    });
+
     // Prefer authenticated user ID if available
     const approverId = req.user?.id || req.user?._id || approverIdFromBody;
     if (!approverId) {
+      console.error('❌ No approver ID found');
       return res.status(400).json({
         success: false,
         message: 'Approver ID is required for approval.'
@@ -894,6 +904,7 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
     }
 
     // Update the expense
+    console.log('📝 Updating expense with data:', updateData);
     const updatedExpense = await Expense.findByIdAndUpdate(
       expenseId,
       updateData,
@@ -902,6 +913,13 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
     .populate('submittedBy', 'name email')
     .populate('site', 'name code')
     .populate('approvalHistory.approver', 'name email role');
+
+    console.log('✅ Expense updated successfully:', {
+      expenseId: updatedExpense._id,
+      expenseNumber: updatedExpense.expenseNumber,
+      status: updatedExpense.status,
+      currentApprovalLevel: updatedExpense.currentApprovalLevel
+    });
 
     // Update site statistics when expense is approved (L3 final approval or payment)
     if ((action === 'approve' && levelNum === 3) || action === 'payment') {
@@ -1003,7 +1021,7 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
       
       const socketData = {
         ...notificationData,
-        status: 'approved',
+        status: updatedExpense.status, // Use actual expense status instead of hardcoded 'approved'
         amount: modifiedAmount || updatedExpense.amount,
         category: updatedExpense.category,
         siteName: updatedExpense.site.name,
@@ -1138,8 +1156,8 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
       if (levelNum === 1) {
         // Remove L1 PendingApprover for this expense and approver
         await PendingApprover.deleteMany({ expense: expenseId, level: 1, approver: approverId });
-        // Create L2 PendingApprover(s)
-        const l2Approvers = await User.find({ role: 'l2_approver', site: expense.site._id, isActive: true });
+        // Create L2 PendingApprover(s) - L2 approvers can see all sites
+        const l2Approvers = await User.find({ role: 'l2_approver', isActive: true });
         for (const approver of l2Approvers) {
           await PendingApprover.create({
             level: 2,
@@ -1264,12 +1282,22 @@ router.put('/:expenseId/approve', protect, authorize('l1_approver', 'l2_approver
       await PendingApprover.deleteMany({ expense: expenseId });
     }
 
-    res.json({
+    const responseData = {
       success: true,
       message: action === 'payment' ? 'Payment processed successfully' : 
                `Expense ${action === 'reject' ? 'rejected' : 'approved'} successfully`,
       data: updatedExpense
+    };
+
+    console.log('📤 Sending success response:', {
+      success: responseData.success,
+      message: responseData.message,
+      expenseId: updatedExpense._id,
+      expenseNumber: updatedExpense.expenseNumber,
+      status: updatedExpense.status
     });
+
+    res.json(responseData);
 
   } catch (error) {
     console.error('Error updating expense:', error);

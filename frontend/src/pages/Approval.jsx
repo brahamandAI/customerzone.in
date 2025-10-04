@@ -124,9 +124,9 @@ const Approval = () => {
           expenseNumber: expense.expenseNumber,
           title: expense.title,
           amount: expense.amount,
-              site: expense.site?.name || 'Unknown Site',
+              site: typeof expense.site === 'object' ? (expense.site?.name || 'Unknown Site') : expense.site,
           category: expense.category,
-              submitter: expense.submittedBy?.name || 'Unknown User',
+              submitter: typeof expense.submittedBy === 'object' ? (expense.submittedBy?.name || 'Unknown User') : expense.submittedBy,
           date: new Date(expense.expenseDate).toISOString().split('T')[0],
           description: expense.description,
                       status: expense.status === 'submitted' || expense.status === 'under_review' || expense.status === 'approved_l1' || expense.status === 'approved_l2' || expense.status === 'approved_l3'
@@ -154,11 +154,30 @@ const Approval = () => {
             }
             
             return transformedApproval;
-          } catch (error) {
+            } catch (error) {
             console.error('Error transforming expense:', error, expense);
-            return null;
+            // Return a safe fallback object to prevent rendering issues
+            return {
+              id: expense.id || expense._id,
+              expenseNumber: expense.expenseNumber || 'Unknown',
+              title: expense.title || 'Unknown Title',
+              amount: expense.amount || 0,
+              site: 'Unknown Site',
+              category: expense.category || 'Unknown',
+              submitter: 'Unknown User',
+              date: new Date().toISOString().split('T')[0],
+              description: expense.description || 'No description',
+              status: 'pending',
+              approvalLevel: 'L1',
+              priority: 'normal',
+              attachments: 0,
+              modifiedAmount: null,
+              approvalComments: [],
+              policyFlags: [],
+              riskScore: 0
+            };
           }
-        }).filter(Boolean); // Remove any null entries
+        }); // No need to filter since we return safe fallback objects
 
         console.log('Transformed approvals:', transformedApprovals);
         console.log('Transformed approvals count:', transformedApprovals.length);
@@ -269,7 +288,35 @@ const Approval = () => {
   const levelMap = { L1: 1, L2: 2, L3: 3 };
 
   const handleApprove = async (id) => {
+    // Store original state for rollback
+    const originalApprovals = [...approvals];
+    
+    // Optimistic UI update - immediately remove from pending list
+    setApprovals(approvals.filter(approval => approval.id !== id));
+    setOpenDialog(false);
+    setApprovalComment('');
+    setModifiedAmount('');
+    setAmountChangeReason('');
+    
+    // Clear priority for this specific approval
+    setApprovalPriorities(prev => {
+      const newPriorities = { ...prev };
+      delete newPriorities[id];
+      return newPriorities;
+    });
+
     try {
+      console.log('🚀 Starting approval process for expense:', id);
+      console.log('📝 Approval data:', {
+        action: 'approve',
+        level: levelMap[selectedApproval.approvalLevel],
+        approverId: user?._id,
+        comments: approvalComment,
+        modifiedAmount: modifiedAmount ? parseFloat(modifiedAmount) : null,
+        modificationReason: amountChangeReason,
+        priority: canSetPriority ? (approvalPriorities[id] || 'medium') : null
+      });
+
       const response = await expenseAPI.approveExpense(id, {
         action: 'approve',
         level: levelMap[selectedApproval.approvalLevel], // send as int
@@ -280,35 +327,111 @@ const Approval = () => {
         priority: canSetPriority ? (approvalPriorities[id] || 'medium') : null
       });
 
+      console.log('✅ Approval API response:', response);
       const data = response.data;
+      console.log('📊 Response data:', data);
       
-      if (data.success) {
+      if (data && data.success) {
+        console.log('🎉 Approval successful!');
         // Show success message
         setSnackbarMessage(`Expense approved successfully! ${selectedApproval.approvalLevel === 'L3' ? 'Payment initiated.' : 'Forwarded to next level.'}`);
         setSnackbarSeverity('success');
         setSnackbarOpen(true);
         
-        // Update local state
-        setApprovals(approvals.filter(approval => approval.id !== id));
-    setOpenDialog(false);
-    setApprovalComment('');
-    setModifiedAmount('');
-    setAmountChangeReason('');
-    // Clear priority for this specific approval
-    setApprovalPriorities(prev => {
-      const newPriorities = { ...prev };
-      delete newPriorities[id];
-      return newPriorities;
-    });
-    fetchData(); // Re-fetch both approvals and stats to update summary cards
+        // Refresh data to get updated stats
+        fetchData();
       } else {
-        throw new Error(data.message);
+        console.error('❌ API returned success: false', data);
+        const errorMessage = data?.message || 'Unknown error occurred';
+        throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Error approving expense:', error);
-      setSnackbarMessage('Failed to approve expense. Please try again.');
-      setSnackbarSeverity('error');
+      console.error('❌ Error approving expense:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      // Restore original state on error
+      setApprovals(originalApprovals);
+      
+      // Don't show error notification immediately - check if expense was actually approved
+      console.log('🔄 Checking if expense was actually approved despite the error...');
+      
+      // Show a neutral message while checking
+      setSnackbarMessage('Checking approval status...');
+      setSnackbarSeverity('info');
       setSnackbarOpen(true);
+      
+      // Refresh data immediately to check actual status
+      setTimeout(async () => {
+        try {
+          console.log('🔄 Refreshing data to check approval status...');
+          
+          // Use existing fetchData function to get fresh data
+          const freshApprovals = await expenseAPI.getPendingApprovals();
+          
+          if (freshApprovals.data && freshApprovals.data.success) {
+            const rawData = freshApprovals.data.data || [];
+            
+            // Transform fresh data properly to avoid object rendering issues
+            const transformedFreshData = rawData.map(expense => ({
+              id: expense.id || expense._id,
+              expenseNumber: expense.expenseNumber,
+              title: expense.title,
+              amount: expense.amount,
+              site: typeof expense.site === 'object' ? expense.site?.name : expense.site,
+              category: expense.category,
+              submitter: typeof expense.submittedBy === 'object' ? expense.submittedBy?.name : expense.submittedBy,
+              date: new Date(expense.expenseDate).toISOString().split('T')[0],
+              description: expense.description,
+              status: expense.status === 'submitted' || expense.status === 'under_review' || expense.status === 'approved_l1' || expense.status === 'approved_l2' || expense.status === 'approved_l3'
+                ? 'pending' 
+                : expense.status.toLowerCase(),
+              approvalLevel: expense.status === 'submitted' ? 'L1' :
+                           expense.status === 'approved_l1' ? 'L2' :
+                           expense.status === 'approved_l2' ? 'L3' :
+                           expense.status === 'approved_l3' ? 'L4' : 'L1',
+              priority: expense.priority || 'normal',
+              attachments: expense.attachments?.length || 0,
+              modifiedAmount: expense.modifiedAmount,
+              approvalComments: expense.approvalHistory || [],
+              policyFlags: expense.policyFlags || [],
+              riskScore: expense.riskScore || 0
+            }));
+            
+            // Check if the expense is no longer in pending approvals (meaning it was approved)
+            const isStillPending = transformedFreshData.some(approval => approval.id === id);
+            if (!isStillPending) {
+              console.log('✅ Expense was actually approved despite the error!');
+              setSnackbarMessage('Expense approved successfully!');
+              setSnackbarSeverity('success');
+              setSnackbarOpen(true);
+            } else {
+              // Only show error if expense is still pending
+              console.log('❌ Expense is still pending, showing error');
+              setSnackbarMessage('Failed to approve expense. Please try again.');
+              setSnackbarSeverity('error');
+              setSnackbarOpen(true);
+            }
+            
+            // Update the approvals state with properly transformed fresh data
+            setApprovals(transformedFreshData);
+          } else {
+            console.error('Failed to fetch fresh data');
+            setSnackbarMessage('Failed to approve expense. Please try again.');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+          }
+        } catch (refreshError) {
+          console.error('Error refreshing data:', refreshError);
+          // Only show error if we can't refresh data
+          setSnackbarMessage('Failed to approve expense. Please try again.');
+          setSnackbarSeverity('error');
+          setSnackbarOpen(true);
+        }
+      }, 1000);
     }
   };
 

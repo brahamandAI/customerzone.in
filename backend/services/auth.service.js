@@ -56,7 +56,7 @@ class AuthService {
   async updateLoginAttempts(userId, reset = false) {
     const update = reset
       ? { loginAttempts: 0, lockUntil: null }
-      : { $inc: { loginAttempts: 1 }, lockUntil: new Date(Date.now() + 30 * 60 * 1000) };
+      : { $inc: { loginAttempts: 1 }, lockUntil: new Date(Date.now() + 5 * 60 * 1000) }; // 5 minutes
     return User.findByIdAndUpdate(userId, update, { new: true });
   }
 
