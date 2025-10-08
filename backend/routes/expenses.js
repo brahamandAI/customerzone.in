@@ -653,6 +653,7 @@ router.get('/pending', protect, authorize('l1_approver', 'l2_approver', 'l3_appr
     .populate('submittedBy', 'name email department')
     .populate('site', 'name code')
     .populate('pendingApprovers.approver', 'name email role')
+    .populate('approvalHistory.approver', 'name email role')
     .sort({ createdAt: -1 });
 
     res.json({

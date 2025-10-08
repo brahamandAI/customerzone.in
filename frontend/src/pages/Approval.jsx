@@ -119,6 +119,19 @@ const Approval = () => {
         // Transform data with error handling
         const transformedApprovals = filteredExpenses.map(expense => {
           try {
+            // Transform approval history to match frontend expected format
+            const transformedApprovalHistory = (expense.approvalHistory || []).map(history => ({
+              level: `L${history.level}`, // Convert numeric level to string format
+              comment: history.comments || history.comment || '', // Handle both field names
+              timestamp: history.date || history.timestamp || new Date(), // Handle both field names
+              action: history.action || '',
+              amountModified: history.modifiedAmount ? true : false,
+              originalAmount: expense.amount,
+              modifiedAmount: history.modifiedAmount,
+              amountChangeReason: history.modificationReason || '',
+              approver: history.approver
+            }));
+
             const transformedApproval = {
               id: expense.id || expense._id,
           expenseNumber: expense.expenseNumber,
@@ -139,7 +152,7 @@ const Approval = () => {
           priority: expense.priority || 'normal',
           attachments: expense.attachments?.length || 0,
           modifiedAmount: expense.modifiedAmount,
-          approvalComments: expense.approvalHistory || [],
+          approvalComments: transformedApprovalHistory,
           policyFlags: expense.policyFlags || [],
           riskScore: expense.riskScore || 0
             };
@@ -376,30 +389,45 @@ const Approval = () => {
             const rawData = freshApprovals.data.data || [];
             
             // Transform fresh data properly to avoid object rendering issues
-            const transformedFreshData = rawData.map(expense => ({
-              id: expense.id || expense._id,
-              expenseNumber: expense.expenseNumber,
-              title: expense.title,
-              amount: expense.amount,
-              site: typeof expense.site === 'object' ? expense.site?.name : expense.site,
-              category: expense.category,
-              submitter: typeof expense.submittedBy === 'object' ? expense.submittedBy?.name : expense.submittedBy,
-              date: new Date(expense.expenseDate).toISOString().split('T')[0],
-              description: expense.description,
-              status: expense.status === 'submitted' || expense.status === 'under_review' || expense.status === 'approved_l1' || expense.status === 'approved_l2' || expense.status === 'approved_l3'
-                ? 'pending' 
-                : expense.status.toLowerCase(),
-              approvalLevel: expense.status === 'submitted' ? 'L1' :
-                           expense.status === 'approved_l1' ? 'L2' :
-                           expense.status === 'approved_l2' ? 'L3' :
-                           expense.status === 'approved_l3' ? 'L4' : 'L1',
-              priority: expense.priority || 'normal',
-              attachments: expense.attachments?.length || 0,
-              modifiedAmount: expense.modifiedAmount,
-              approvalComments: expense.approvalHistory || [],
-              policyFlags: expense.policyFlags || [],
-              riskScore: expense.riskScore || 0
-            }));
+            const transformedFreshData = rawData.map(expense => {
+              // Transform approval history to match frontend expected format
+              const transformedApprovalHistory = (expense.approvalHistory || []).map(history => ({
+                level: `L${history.level}`, // Convert numeric level to string format
+                comment: history.comments || history.comment || '', // Handle both field names
+                timestamp: history.date || history.timestamp || new Date(), // Handle both field names
+                action: history.action || '',
+                amountModified: history.modifiedAmount ? true : false,
+                originalAmount: expense.amount,
+                modifiedAmount: history.modifiedAmount,
+                amountChangeReason: history.modificationReason || '',
+                approver: history.approver
+              }));
+
+              return {
+                id: expense.id || expense._id,
+                expenseNumber: expense.expenseNumber,
+                title: expense.title,
+                amount: expense.amount,
+                site: typeof expense.site === 'object' ? expense.site?.name : expense.site,
+                category: expense.category,
+                submitter: typeof expense.submittedBy === 'object' ? expense.submittedBy?.name : expense.submittedBy,
+                date: new Date(expense.expenseDate).toISOString().split('T')[0],
+                description: expense.description,
+                status: expense.status === 'submitted' || expense.status === 'under_review' || expense.status === 'approved_l1' || expense.status === 'approved_l2' || expense.status === 'approved_l3'
+                  ? 'pending' 
+                  : expense.status.toLowerCase(),
+                approvalLevel: expense.status === 'submitted' ? 'L1' :
+                             expense.status === 'approved_l1' ? 'L2' :
+                             expense.status === 'approved_l2' ? 'L3' :
+                             expense.status === 'approved_l3' ? 'L4' : 'L1',
+                priority: expense.priority || 'normal',
+                attachments: expense.attachments?.length || 0,
+                modifiedAmount: expense.modifiedAmount,
+                approvalComments: transformedApprovalHistory,
+                policyFlags: expense.policyFlags || [],
+                riskScore: expense.riskScore || 0
+              };
+            });
             
             // Check if the expense is no longer in pending approvals (meaning it was approved)
             const isStillPending = transformedFreshData.some(approval => approval.id === id);
@@ -562,12 +590,24 @@ const Approval = () => {
   // Removed unused getNextApprovalLevel function
 
     const getApprovalLevelName = (level) => {
-    switch (level) {
-      case 'L1': return 'Regional/Operations Manager';
-      case 'L2': return 'Admin';
-      case 'L3': return 'Super Admin';
-      case 'L4': return 'Finance';
-      default: return 'Unknown';
+    // Handle both string format (L1, L2, L3, L4) and numeric format (1, 2, 3, 4)
+    const levelStr = level.toString();
+    switch (levelStr) {
+      case 'L1':
+      case '1': 
+        return 'Regional/Operations Manager';
+      case 'L2':
+      case '2': 
+        return 'Admin';
+      case 'L3':
+      case '3': 
+        return 'Super Admin';
+      case 'L4':
+      case '4': 
+        return 'Finance';
+      default: 
+        console.warn('Unknown approval level:', level);
+        return 'Unknown';
     }
   };
 
@@ -1153,7 +1193,10 @@ const Approval = () => {
                         <Box key={index} sx={{ p: 2, mb: 1, bgcolor: 'rgba(0,0,0,0.05)', borderRadius: 1 }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography variant="body2" fontWeight={600}>
-                              {getApprovalLevelName(comment.level)} - {new Date(comment.timestamp).toLocaleString()}
+                              {getApprovalLevelName(comment.level)}
+                              {comment.approver?.name && ` - ${comment.approver.name}`}
+                              {' - '}
+                              {new Date(comment.timestamp).toLocaleString()}
                             </Typography>
                             {comment.amountModified && (
                               <Chip 

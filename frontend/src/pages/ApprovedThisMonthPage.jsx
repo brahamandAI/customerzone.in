@@ -104,6 +104,26 @@ const ApprovedThisMonthPage = () => {
           ['approved', 'approved_l1', 'approved_l2', 'approved_l3', 'approved_finance', 'reimbursed', 'payment_processed'].includes(exp.status)
         );
 
+        // Transform approval history to match frontend expected format
+        approvedExpenses = approvedExpenses.map(expense => {
+          const transformedApprovalHistory = (expense.approvalHistory || []).map(history => ({
+            level: `L${history.level}`, // Convert numeric level to string format
+            comment: history.comments || history.comment || '', // Handle both field names
+            timestamp: history.date || history.timestamp || new Date(), // Handle both field names
+            action: history.action || '',
+            amountModified: history.modifiedAmount ? true : false,
+            originalAmount: expense.amount,
+            modifiedAmount: history.modifiedAmount,
+            amountChangeReason: history.modificationReason || '',
+            approver: history.approver
+          }));
+
+          return {
+            ...expense,
+            approvalComments: transformedApprovalHistory
+          };
+        });
+
         if (user?.role?.toLowerCase() === 'submitter') {
           // Try multiple ways to match expenses for submitter
           approvedExpenses = approvedExpenses.filter(exp => {
@@ -232,10 +252,10 @@ const ApprovedThisMonthPage = () => {
 
     // Calculate average approval time
     const approvalTimes = timeFilteredExpenses
-      .filter(exp => exp.approvalHistory && exp.approvalHistory.length > 0)
+      .filter(exp => exp.approvalComments && exp.approvalComments.length > 0)
       .map(exp => {
         const submissionDate = new Date(exp.submissionDate || exp.createdAt);
-        const lastApprovalDate = new Date(exp.approvalHistory[exp.approvalHistory.length - 1].date);
+        const lastApprovalDate = new Date(exp.approvalComments[exp.approvalComments.length - 1].timestamp);
         return Math.ceil((lastApprovalDate - submissionDate) / (1000 * 60 * 60 * 24));
       });
     
@@ -278,8 +298,8 @@ const ApprovedThisMonthPage = () => {
     // Top approvers
     const approverMap = {};
     timeFilteredExpenses.forEach(exp => {
-      if (exp.approvalHistory) {
-        exp.approvalHistory.forEach(approval => {
+      if (exp.approvalComments) {
+        exp.approvalComments.forEach(approval => {
           if (approverMap[approval.approver]) {
             approverMap[approval.approver].count += 1;
             approverMap[approval.approver].amount += exp.amount;
@@ -751,8 +771,8 @@ const ApprovedThisMonthPage = () => {
                 </TableHead>
                 <TableBody>
                   {expenses.slice(0, 10).map((expense, index) => {
-                    const approvalTime = expense.approvalHistory && expense.approvalHistory.length > 0
-                      ? Math.ceil((new Date(expense.approvalHistory[expense.approvalHistory.length - 1].date) - new Date(expense.submissionDate || expense.createdAt)) / (1000 * 60 * 60 * 24))
+                    const approvalTime = expense.approvalComments && expense.approvalComments.length > 0
+                      ? Math.ceil((new Date(expense.approvalComments[expense.approvalComments.length - 1].timestamp) - new Date(expense.submissionDate || expense.createdAt)) / (1000 * 60 * 60 * 24))
                       : 0;
 
                     return (
@@ -796,8 +816,8 @@ const ApprovedThisMonthPage = () => {
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" color={darkMode ? '#b0b0b0' : '#666'}>
-                            {expense.approvalHistory && expense.approvalHistory.length > 0
-                              ? new Date(expense.approvalHistory[expense.approvalHistory.length - 1].date).toLocaleDateString()
+                            {expense.approvalComments && expense.approvalComments.length > 0
+                              ? new Date(expense.approvalComments[expense.approvalComments.length - 1].timestamp).toLocaleDateString()
                               : 'N/A'
                             }
                           </Typography>

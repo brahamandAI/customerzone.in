@@ -112,25 +112,40 @@ const AllSitesApproval = () => {
         );
 
         // Transform data
-        const transformedExpenses = filteredExpenses.map(expense => ({
-          id: expense.id || expense._id,
-          expenseNumber: expense.expenseNumber,
-          title: expense.title,
-          amount: expense.amount,
-          site: expense.site?.name || 'Unknown Site',
-          siteId: expense.site?._id || expense.site,
-          category: expense.category,
-          submitter: expense.submittedBy?.name || 'Unknown User',
-          date: new Date(expense.expenseDate).toISOString().split('T')[0],
-          description: expense.description,
-          status: expense.status,
-          approvalLevel: expense.status === 'submitted' ? 'L1' :
-                       expense.status === 'approved_l1' ? 'L2' : 'L1',
-          priority: expense.priority || 'normal',
-          attachments: expense.attachments?.length || 0,
-          modifiedAmount: expense.modifiedAmount,
-          approvalComments: expense.approvalHistory || []
-        }));
+        const transformedExpenses = filteredExpenses.map(expense => {
+          // Transform approval history to match frontend expected format
+          const transformedApprovalHistory = (expense.approvalHistory || []).map(history => ({
+            level: `L${history.level}`, // Convert numeric level to string format
+            comment: history.comments || history.comment || '', // Handle both field names
+            timestamp: history.date || history.timestamp || new Date(), // Handle both field names
+            action: history.action || '',
+            amountModified: history.modifiedAmount ? true : false,
+            originalAmount: expense.amount,
+            modifiedAmount: history.modifiedAmount,
+            amountChangeReason: history.modificationReason || '',
+            approver: history.approver
+          }));
+
+          return {
+            id: expense.id || expense._id,
+            expenseNumber: expense.expenseNumber,
+            title: expense.title,
+            amount: expense.amount,
+            site: expense.site?.name || 'Unknown Site',
+            siteId: expense.site?._id || expense.site,
+            category: expense.category,
+            submitter: expense.submittedBy?.name || 'Unknown User',
+            date: new Date(expense.expenseDate).toISOString().split('T')[0],
+            description: expense.description,
+            status: expense.status,
+            approvalLevel: expense.status === 'submitted' ? 'L1' :
+                         expense.status === 'approved_l1' ? 'L2' : 'L1',
+            priority: expense.priority || 'normal',
+            attachments: expense.attachments?.length || 0,
+            modifiedAmount: expense.modifiedAmount,
+            approvalComments: transformedApprovalHistory
+          };
+        });
 
         setAllExpenses(transformedExpenses);
       } else {

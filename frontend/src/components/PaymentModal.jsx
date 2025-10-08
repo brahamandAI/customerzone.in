@@ -10,20 +10,36 @@ import {
   CircularProgress,
   Alert,
   Divider,
-  Chip
+  Chip,
+  IconButton,
+  Tooltip
 } from '@mui/material';
+import { BugReport } from '@mui/icons-material';
 import { paymentAPI } from '../services/api';
+import { runPaymentDiagnostics } from '../utils/paymentDiagnostics';
 
 const PaymentModal = ({ open, onClose, expense, onPaymentSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [order, setOrder] = useState(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
 
   useEffect(() => {
     if (open && expense) {
       createOrder();
     }
   }, [open, expense]);
+
+  // Check if Razorpay script is loaded
+  useEffect(() => {
+    const checkRazorpay = () => {
+      if (typeof window !== 'undefined' && !window.Razorpay) {
+        console.warn('Razorpay script not loaded. Please check if script is included in index.html');
+      }
+    };
+    
+    checkRazorpay();
+  }, []);
 
   const createOrder = async () => {
     setLoading(true);
@@ -84,8 +100,22 @@ const PaymentModal = ({ open, onClose, expense, onPaymentSuccess }) => {
     }
   };
 
+  const handlePaymentMethodSelect = (method) => {
+    setSelectedPaymentMethod(method);
+  };
+
   const handlePayment = () => {
     if (!order) return;
+    if (!selectedPaymentMethod) {
+      setError('Please select a payment method first');
+      return;
+    }
+
+    // Check if Razorpay is loaded
+    if (!window.Razorpay) {
+      setError('Payment gateway is not loaded. Please refresh the page and try again.');
+      return;
+    }
 
     const options = {
       key: order.key_id,
@@ -94,6 +124,7 @@ const PaymentModal = ({ open, onClose, expense, onPaymentSuccess }) => {
       name: 'Rakshak Expense Management',
       description: `Payment for ${expense.title}`,
       order_id: order.id,
+      method: selectedPaymentMethod,
       handler: async (response) => {
         try {
           setLoading(true);
@@ -116,6 +147,11 @@ const PaymentModal = ({ open, onClose, expense, onPaymentSuccess }) => {
           setLoading(false);
         }
       },
+      modal: {
+        ondismiss: function() {
+          console.log('Payment modal dismissed');
+        }
+      },
       prefill: {
         name: expense.submittedBy?.name || '',
         email: expense.submittedBy?.email || '',
@@ -125,12 +161,19 @@ const PaymentModal = ({ open, onClose, expense, onPaymentSuccess }) => {
       }
     };
 
-    const rzp = new window.Razorpay(options);
-    rzp.open();
+    try {
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (error) {
+      console.error('Error opening Razorpay:', error);
+      setError('Failed to open payment gateway. Please try again.');
+    }
   };
 
   const handleClose = () => {
     if (!loading) {
+      setSelectedPaymentMethod(null);
+      setError(null);
       onClose();
     }
   };
@@ -143,17 +186,43 @@ const PaymentModal = ({ open, onClose, expense, onPaymentSuccess }) => {
       fullWidth
     >
       <DialogTitle>
-        <Typography variant="h6" fontWeight={600}>
-          Process Payment
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Complete payment for expense: {expense?.expenseNumber}
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h6" fontWeight={600}>
+              Process Payment
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Complete payment for expense: {expense?.expenseNumber}
+            </Typography>
+          </Box>
+          <Tooltip title="Run Payment Diagnostics">
+            <IconButton 
+              onClick={() => runPaymentDiagnostics()}
+              size="small"
+              sx={{ color: 'text.secondary' }}
+            >
+              <BugReport fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </DialogTitle>
 
       <DialogContent>
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert 
+            severity="error" 
+            sx={{ mb: 2 }}
+            action={
+              <Button 
+                color="inherit" 
+                size="small" 
+                onClick={() => runPaymentDiagnostics()}
+                sx={{ textTransform: 'none' }}
+              >
+                Debug
+              </Button>
+            }
+          >
             {error}
           </Alert>
         )}
@@ -238,17 +307,64 @@ const PaymentModal = ({ open, onClose, expense, onPaymentSuccess }) => {
             {/* Payment Method */}
             <Box sx={{ mb: 3 }}>
               <Typography variant="h6" gutterBottom>
-                Payment Method
+                Select Payment Method
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Payment will be processed securely through Razorpay. You can pay using:
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Choose your preferred payment method:
               </Typography>
-              <Box sx={{ mt: 1 }}>
-                <Chip label="Credit/Debit Cards" size="small" sx={{ mr: 1, mb: 1 }} />
-                <Chip label="Net Banking" size="small" sx={{ mr: 1, mb: 1 }} />
-                <Chip label="UPI" size="small" sx={{ mr: 1, mb: 1 }} />
-                <Chip label="Digital Wallets" size="small" sx={{ mr: 1, mb: 1 }} />
+              
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+                {[
+                  { id: 'card', label: 'Credit/Debit Cards', icon: '💳' },
+                  { id: 'netbanking', label: 'Net Banking', icon: '🏦' },
+                  { id: 'upi', label: 'UPI', icon: '📱' },
+                  { id: 'wallet', label: 'Digital Wallets', icon: '💰' }
+                ].map((method) => (
+                  <Button
+                    key={method.id}
+                    variant={selectedPaymentMethod === method.id ? "contained" : "outlined"}
+                    onClick={() => handlePaymentMethodSelect(method.id)}
+                    sx={{
+                      p: 2,
+                      height: 'auto',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 1,
+                      border: selectedPaymentMethod === method.id ? '2px solid #008080' : '1px solid #e0e0e0',
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontSize: '0.875rem',
+                      fontWeight: selectedPaymentMethod === method.id ? 600 : 400,
+                      color: selectedPaymentMethod === method.id ? '#008080' : '#666',
+                      backgroundColor: selectedPaymentMethod === method.id ? 'rgba(0,128,128,0.05)' : 'transparent',
+                      '&:hover': {
+                        borderColor: '#008080',
+                        backgroundColor: 'rgba(0,128,128,0.05)',
+                        color: '#008080'
+                      }
+                    }}
+                  >
+                    <Typography variant="h5">{method.icon}</Typography>
+                    <Typography variant="body2" sx={{ textAlign: 'center', lineHeight: 1.2 }}>
+                      {method.label}
+                    </Typography>
+                  </Button>
+                ))}
               </Box>
+              
+              {selectedPaymentMethod && (
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(0,128,128,0.05)', borderRadius: 1 }}>
+                  <Typography variant="body2" color="#008080" fontWeight={600}>
+                    ✅ Selected: {
+                      selectedPaymentMethod === 'card' ? 'Credit/Debit Cards' :
+                      selectedPaymentMethod === 'netbanking' ? 'Net Banking' :
+                      selectedPaymentMethod === 'upi' ? 'UPI' :
+                      'Digital Wallets'
+                    }
+                  </Typography>
+                </Box>
+              )}
             </Box>
           </Box>
         )}
@@ -265,12 +381,16 @@ const PaymentModal = ({ open, onClose, expense, onPaymentSuccess }) => {
         <Button
           onClick={handlePayment}
           variant="contained"
-          disabled={loading || !order}
+          disabled={loading || !order || !selectedPaymentMethod}
           sx={{
             background: 'linear-gradient(45deg, #008080 30%, #20B2AA 90%)',
             color: 'white',
             '&:hover': {
               background: 'linear-gradient(45deg, #006666 30%, #008080 90%)'
+            },
+            '&:disabled': {
+              background: '#ccc',
+              color: '#666'
             }
           }}
         >
@@ -280,7 +400,9 @@ const PaymentModal = ({ open, onClose, expense, onPaymentSuccess }) => {
               Processing...
             </>
           ) : (
-            'Proceed to Payment'
+            selectedPaymentMethod ? 
+              `Pay with ${selectedPaymentMethod === 'card' ? 'Card' : selectedPaymentMethod === 'netbanking' ? 'Net Banking' : selectedPaymentMethod === 'upi' ? 'UPI' : 'Wallet'}` 
+              : 'Select Payment Method'
           )}
         </Button>
       </DialogActions>
